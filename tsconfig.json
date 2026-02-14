@@ -1,0 +1,3 @@
+{
+  "extends": "@DUST/config/tsconfig.base.json"
+}
