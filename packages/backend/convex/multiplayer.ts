@@ -82,8 +82,14 @@ export const joinRoom = mutation({
       .first();
 
     if (!room) throw new Error("Room not found");
-    if (room.status !== "waiting") throw new Error("Room is no longer accepting players");
     if (room.hostClerkId === identity.subject) throw new Error("Cannot join your own room");
+
+    // If this user is already the guest (e.g. double-click or re-render), just return
+    if (room.guestClerkId === identity.subject) {
+      return { roomId: room._id, roomCode: room.roomCode };
+    }
+
+    if (room.status !== "waiting") throw new Error("Room is no longer accepting players");
 
     await ctx.db.patch(room._id, {
       guestClerkId: identity.subject,
