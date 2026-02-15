@@ -356,9 +356,5 @@
 ## Stretch Goals (Only if ahead of schedule)
 
 - [ ] Multiplayer race mode (two players competing on same page)
-- [ ] Screen recording/replay of best moments
-- [ ] Daily challenge mode (same content for all players)
 - [ ] Achievement badges (First Archive, Speed Demon, Perfect Score)
-- [ ] PWA support (installable web app)
-- [ ] Sound design with Web Audio API
 - [ ] Animated tutorial instead of static how-to-play page
