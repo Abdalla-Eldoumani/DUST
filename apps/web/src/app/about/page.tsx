@@ -6,6 +6,7 @@ import { ArrowLeft, Github, Brain, Archive, Timer } from "lucide-react";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
+import { FireBarrier } from "@/components/ui/fire-barrier";
 
 const TOPICS = [
   {
@@ -44,6 +45,7 @@ const TECH_STACK = [
 export default function AboutPage() {
   return (
     <div className="relative min-h-svh bg-void">
+      <FireBarrier />
       <ScanlineOverlay />
 
       <div className="relative z-10 mx-auto max-w-2xl px-4 py-8">
