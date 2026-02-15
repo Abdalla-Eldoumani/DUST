@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
-import { ClaimDensity } from "./claim-density";
 import { DateChecker } from "./date-checker";
 import { CrossReference } from "./cross-reference";
 import { SentimentAnalyzer } from "./sentiment-analyzer";
 import type { FactCheckData, PageSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Search, Calendar, GitCompare, Brain } from "lucide-react";
+import { Calendar, GitCompare, Brain } from "lucide-react";
 
 interface ToolPanelProps {
   factCheckData: FactCheckData | null;
@@ -17,18 +16,11 @@ interface ToolPanelProps {
   decayProgress: number;
   className?: string;
   selectedSectionId?: string | null;
-  sections?: import("@/lib/types").PageSection[];
 }
 
-type ToolId = "claims" | "date" | "cross-ref" | "sentiment";
+type ToolId = "date" | "cross-ref" | "sentiment";
 
 const TOOLS = [
-  {
-    id: "claims" as ToolId,
-    label: "Claim Density",
-    hint: "Detect sections packed with specific claims.",
-    icon: Search,
-  },
   {
     id: "date" as ToolId,
     label: "Date Checker",
@@ -55,7 +47,6 @@ export function ToolPanel({
   decayProgress,
   className,
   selectedSectionId,
-  sections,
 }: ToolPanelProps) {
   const selectedSection = selectedSectionId && sections
     ? sections.find((s) => s.id === selectedSectionId)
@@ -125,60 +116,71 @@ export function ToolPanel({
           Integrity remaining: {Math.max(0, Math.round((1 - decayProgress) * 100))}%
         </p>
 
-        {/* Tool results */}
-        <div className="mt-3 min-h-[120px] border-t border-white/5 pt-3">
-          <AnimatePresence mode="wait">
-            {activeTool && factCheckData && (
-              <motion.div
-                key={activeTool}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-              >
-                {activeTool === "claims" && (
-                  <ClaimDensity sections={sections} />
-                )}
-                {activeTool === "date" && (
-                  <DateChecker data={factCheckData} />
-                )}
-                {activeTool === "cross-ref" && (
-                  <CrossReference data={factCheckData} />
-                )}
-                {activeTool === "sentiment" && (
-                  <SentimentAnalyzer data={factCheckData} />
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {!activeTool && (
-            <div className="flex min-h-[120px] items-center justify-center border border-dashed border-white/10 bg-elevated/10 px-3">
-              <p className="text-center text-sm text-text-ghost font-sans">
-                Select a tool to analyze this page
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Per-section analysis hint */}
-        {selectedSection && activeTool && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-2 border border-white/5 bg-elevated/20 p-2"
-          >
-            <p className="font-mono text-[10px] text-text-ghost uppercase tracking-wider mb-1">
-              Section Analysis
-            </p>
-            <p className="font-sans text-xs text-text-secondary leading-relaxed">
-              {activeTool === "source" && (selectedSection.sourceIssue || "No source issues detected for this section.")}
-              {activeTool === "date" && (selectedSection.dateIssue || "No date inconsistencies found.")}
-              {activeTool === "cross-ref" && (selectedSection.crossRefIssue || "No cross-reference conflicts found.")}
-              {activeTool === "sentiment" && (selectedSection.emotionalLanguage || "Language appears neutral.")}
-            </p>
-          </motion.div>
+        {!activeTool && (
+          <p className="mt-3 text-xs font-sans text-text-ghost">
+            Select a tool to open analysis details.
+          </p>
         )}
+
+        {/* Sliding tool details panel */}
+        <AnimatePresence initial={false}>
+          {activeTool && (
+            <motion.div
+              key="tool-details"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="mt-3 overflow-hidden"
+            >
+              <div className="border-t border-white/5 pt-3">
+                {factCheckData ? (
+                  <motion.div
+                    key={activeTool}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {activeTool === "date" && (
+                      <DateChecker data={factCheckData} />
+                    )}
+                    {activeTool === "cross-ref" && (
+                      <CrossReference data={factCheckData} />
+                    )}
+                    {activeTool === "sentiment" && (
+                      <SentimentAnalyzer data={factCheckData} />
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className="border border-dashed border-white/10 bg-elevated/10 px-3 py-4">
+                    <p className="text-sm text-text-ghost font-sans">
+                      Analysis data is unavailable for this page.
+                    </p>
+                  </div>
+                )}
+
+                {/* Per-section analysis hint */}
+                {selectedSection && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="mt-2 border border-white/5 bg-elevated/20 p-2"
+                  >
+                    <p className="mb-1 font-mono text-[10px] text-text-ghost uppercase tracking-wider">
+                      Section Analysis
+                    </p>
+                    <p className="font-sans text-xs text-text-secondary leading-relaxed">
+                      {activeTool === "date" && (selectedSection.dateIssue || "No date inconsistencies found.")}
+                      {activeTool === "cross-ref" && (selectedSection.crossRefIssue || "No cross-reference conflicts found.")}
+                      {activeTool === "sentiment" && (selectedSection.emotionalLanguage || "Language appears neutral.")}
+                    </p>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </TerminalPanel>
   );

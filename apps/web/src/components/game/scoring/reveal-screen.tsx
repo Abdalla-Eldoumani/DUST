@@ -81,7 +81,7 @@ export function RevealScreen({
           </div>
           {combo > 1 && (
             <div className="font-mono text-xs text-amber">
-              x{combo} combo multiplier active
+              Streak active: {combo}
             </div>
           )}
         </div>

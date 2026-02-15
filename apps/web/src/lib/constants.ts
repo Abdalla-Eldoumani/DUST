@@ -4,6 +4,7 @@ export const GAME_CONSTANTS = {
   MISINFO_ARCHIVE_PENALTY: -150,
   CLUTCH_SAVE_BONUS: 50, // Archived in last 10% of decay
   COMBO_MULTIPLIER_INCREMENT: 0.25, // Each consecutive correct +25%
+  TIMEOUT_NO_ARCHIVE_PENALTY: -400, // No selections before decay completes
 
   // Energy
   BASE_ARCHIVE_ENERGY: 5,

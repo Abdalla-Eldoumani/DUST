@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { useGameStore } from "@/store/game-store";
@@ -31,6 +32,7 @@ import { isValidPageContent } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
 
 export default function PlayPage() {
+  const router = useRouter();
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
   const hasTimedOutRef = useRef(false);
@@ -44,14 +46,6 @@ export default function PlayPage() {
   // Level selection state — set when user picks a level from LevelSelector
   const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
   const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
-
-  // Lock body scroll during gameplay, restore on unmount
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
 
   // Query variants for the selected level (skips when no level selected)
   const levelVariants = useQuery(
@@ -190,12 +184,12 @@ export default function PlayPage() {
       sectionId: section.id,
       sectionText: section.text,
       wasCorrect: false,
-      pointsEarned: -GAME_CONSTANTS.CORRECT_ARCHIVE_POINTS,
+      pointsEarned: 0,
       level: store.currentLevel,
       timestamp: Date.now(),
     }));
 
-    const roundScore = timedOutItems.reduce((sum, item) => sum + item.pointsEarned, 0);
+    const roundScore = GAME_CONSTANTS.TIMEOUT_NO_ARCHIVE_PENALTY;
 
     useGameStore.setState((state) => ({
       score: Math.max(0, state.score + roundScore),
@@ -238,9 +232,19 @@ export default function PlayPage() {
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
     setTimeoutReveal(null);
+    const { demoMode, selectedLevelId, selectedDifficulty } = useGameStore.getState();
+
+    if (selectedLevelId) {
+      store.resetGame();
+      store.setGamePhase("loading");
+      setPendingLevelId(selectedLevelId);
+      setPendingDifficulty(selectedDifficulty ?? 1);
+      return;
+    }
+
     setPendingLevelId(null);
     setPendingDifficulty(1);
-    store.resetGame();
+    store.startGame(demoMode);
   }, [store]);
 
   // ─── MENU STATE ───
@@ -272,7 +276,7 @@ export default function PlayPage() {
         result={store.lastGameResult}
         onPlayAgain={handlePlayAgain}
         onGoHome={() => (window.location.href = "/")}
-        onViewLeaderboard={() => (window.location.href = "/leaderboard")}
+        onViewLeaderboard={() => router.push("/leaderboard?from=postgame")}
       />
     );
   }
@@ -334,7 +338,7 @@ export default function PlayPage() {
 
   return (
     <motion.div
-      className="flex min-h-svh flex-col relative"
+      className="relative flex min-h-svh flex-col"
       animate={
         screenShake
           ? {
@@ -379,7 +383,7 @@ export default function PlayPage() {
       </div>
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         {/* Fake page viewport — 65-70% */}
         <div className="flex-1 overflow-y-auto p-4">
           <AnimatePresence mode="wait">
@@ -404,16 +408,14 @@ export default function PlayPage() {
         </div>
 
         {/* Right panel — 30-35% */}
-        <div className="w-[340px] shrink-0 border-l border-white/5 bg-surface/20 flex flex-col overflow-hidden">
-          <div className="p-3 flex-1 min-h-0 flex flex-col gap-4 overflow-y-auto">
+        <div className="flex w-[340px] shrink-0 flex-col border-l border-white/5 bg-surface/20">
+          <div className="flex flex-1 flex-col gap-4 p-3">
             {/* Tools */}
             <ToolPanel
               factCheckData={page.factCheckData}
               sections={page.sections}
               decayProgress={store.decayProgress}
-              className="flex-1 min-h-[420px]"
-              selectedSectionId={store.selectedSections[store.selectedSections.length - 1] ?? null}
-              sections={page.sections}
+              className="min-h-0 flex-1"
             />
 
             {/* Energy */}
