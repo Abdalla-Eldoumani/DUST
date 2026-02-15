@@ -27,11 +27,14 @@ import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
 import { ParticleField } from "@/components/ui/particle-field";
 
 import type { ArchivedItem, PageContent } from "@/lib/types";
+import { isValidPageContent } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
 
 export default function PlayPage() {
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
+  const hasTimedOutRef = useRef(false);
+  const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [timeoutReveal, setTimeoutReveal] = useState<{
     items: ArchivedItem[];
     roundScore: number;
@@ -41,6 +44,14 @@ export default function PlayPage() {
   // Level selection state — set when user picks a level from LevelSelector
   const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
   const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
+
+  // Lock body scroll during gameplay, restore on unmount
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
 
   // Query variants for the selected level (skips when no level selected)
   const levelVariants = useQuery(
@@ -55,14 +66,15 @@ export default function PlayPage() {
 
   const decayEngine = useDecayEngine({
     duration: store.currentPage?.decayDuration ?? difficulty.decayDuration,
+    curve: difficulty.decayCurve,
     onProgress: store.setDecayProgress,
   });
 
   // When variants arrive for a pending level, convert and start the game
   useEffect(() => {
     if (pendingLevelId && levelVariants && levelVariants.length > 0) {
-      const pages = levelVariants.map((v) =>
-        variantToPageContent(v as unknown as ConvexVariant)
+      const pages = levelVariants.map((variant: unknown) =>
+        variantToPageContent(variant as ConvexVariant)
       );
       store.startLevelGame(pendingLevelId, pendingDifficulty, pages);
       setPendingLevelId(null);
@@ -73,17 +85,45 @@ export default function PlayPage() {
   // Load first page when game starts (quick play / demo mode — no level selected)
   useEffect(() => {
     if (store.gamePhase === "loading" && !pendingLevelId) {
-      const page = store.demoMode
-        ? getDemoPage(0)
-        : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
-      usedIdsRef.current.push(page.id);
-      store.setCurrentPage(page);
+      try {
+        const page = store.demoMode
+          ? getDemoPage(0)
+          : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
+        if (isValidPageContent(page)) {
+          usedIdsRef.current.push(page.id);
+          store.setCurrentPage(page);
+        } else {
+          // Fallback to first cached page
+          const fallback = getRandomCachedPage([]);
+          usedIdsRef.current.push(fallback.id);
+          store.setCurrentPage(fallback);
+        }
+      } catch {
+        // Emergency fallback
+        const fallback = getRandomCachedPage([]);
+        usedIdsRef.current.push(fallback.id);
+        store.setCurrentPage(fallback);
+      }
     }
+  }, [store.gamePhase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Loading timeout: if stuck in "loading" for 5 seconds, force-load
+  useEffect(() => {
+    if (store.gamePhase !== "loading") return;
+    const timer = setTimeout(() => {
+      if (useGameStore.getState().gamePhase === "loading") {
+        const fallback = getRandomCachedPage([]);
+        usedIdsRef.current.push(fallback.id);
+        store.setCurrentPage(fallback);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [store.gamePhase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start decay when page is loaded
   useEffect(() => {
     if (store.gamePhase === "playing" && store.currentPage) {
+      hasTimedOutRef.current = false;
       decayEngine.reset();
       decayEngine.start();
     }
@@ -93,18 +133,35 @@ export default function PlayPage() {
   useEffect(() => {
     if (store.decayProgress >= 0.75 && store.decayProgress < 0.78 && store.gamePhase === "playing") {
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), 400);
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+      shakeTimerRef.current = setTimeout(() => setScreenShake(false), 400);
     }
   }, [Math.round(store.decayProgress * 30)]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup shake timer on unmount
+  useEffect(() => {
+    return () => {
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+    };
+  }, []);
+
   // Auto-archive (or force penalty reveal) when decay completes
   useEffect(() => {
-    if (decayEngine.isComplete && store.gamePhase === "playing") {
-      if (store.selectedSections.length > 0) {
-        handleArchive();
-      } else {
-        handleTimeoutWithoutArchive();
-      }
+    if (!decayEngine.isComplete) {
+      hasTimedOutRef.current = false;
+      return;
+    }
+    // Prevent double-fire
+    if (hasTimedOutRef.current) return;
+    // Read fresh state to avoid stale closures
+    const freshState = useGameStore.getState();
+    if (freshState.gamePhase !== "playing") return;
+    hasTimedOutRef.current = true;
+
+    if (freshState.selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      handleTimeoutWithoutArchive();
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -354,6 +411,8 @@ export default function PlayPage() {
               factCheckData={page.factCheckData}
               decayProgress={store.decayProgress}
               className="flex-1 min-h-[420px]"
+              selectedSectionId={store.selectedSections[store.selectedSections.length - 1] ?? null}
+              sections={page.sections}
             />
 
             {/* Energy */}

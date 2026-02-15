@@ -15,6 +15,8 @@ interface ToolPanelProps {
   factCheckData: FactCheckData | null;
   decayProgress: number;
   className?: string;
+  selectedSectionId?: string | null;
+  sections?: import("@/lib/types").PageSection[];
 }
 
 type ToolId = "source" | "date" | "cross-ref" | "sentiment";
@@ -50,7 +52,12 @@ export function ToolPanel({
   factCheckData,
   decayProgress,
   className,
+  selectedSectionId,
+  sections,
 }: ToolPanelProps) {
+  const selectedSection = selectedSectionId && sections
+    ? sections.find((s) => s.id === selectedSectionId)
+    : null;
   const [activeTool, setActiveTool] = useState<ToolId | null>(null);
   const [usedTools, setUsedTools] = useState<Set<ToolId>>(new Set());
 
@@ -151,6 +158,25 @@ export function ToolPanel({
             </div>
           )}
         </div>
+
+        {/* Per-section analysis hint */}
+        {selectedSection && activeTool && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-2 border border-white/5 bg-elevated/20 p-2"
+          >
+            <p className="font-mono text-[10px] text-text-ghost uppercase tracking-wider mb-1">
+              Section Analysis
+            </p>
+            <p className="font-sans text-xs text-text-secondary leading-relaxed">
+              {activeTool === "source" && (selectedSection.sourceIssue || "No source issues detected for this section.")}
+              {activeTool === "date" && (selectedSection.dateIssue || "No date inconsistencies found.")}
+              {activeTool === "cross-ref" && (selectedSection.crossRefIssue || "No cross-reference conflicts found.")}
+              {activeTool === "sentiment" && (selectedSection.emotionalLanguage || "Language appears neutral.")}
+            </p>
+          </motion.div>
+        )}
       </div>
     </TerminalPanel>
   );

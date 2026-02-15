@@ -20,3 +20,52 @@ export const GAME_CONSTANTS = {
   MISINFO_SECTIONS_MEDIUM: 2, // Level 4-6
   MISINFO_SECTIONS_HARD: 3, // Level 7+
 } as const;
+
+/**
+ * 4-tier difficulty configuration with decay curves.
+ * Each tier defines duration, delay, curve, and tool charges.
+ */
+export const DIFFICULTY_CONFIG = {
+  easy: {
+    levels: [1, 2, 3],
+    decayDuration: 60,
+    decayStartDelay: 3,
+    decayCurve: "linear" as const,
+    sectionCount: 5,
+    archiveEnergy: 5,
+    toolCharges: 4,
+    label: "Easy",
+  },
+  medium: {
+    levels: [4, 5, 6],
+    decayDuration: 40,
+    decayStartDelay: 2,
+    decayCurve: "ease-in" as const,
+    sectionCount: 6,
+    archiveEnergy: 5,
+    toolCharges: 3,
+    label: "Medium",
+  },
+  hard: {
+    levels: [7, 8, 9],
+    decayDuration: 25,
+    decayStartDelay: 1,
+    decayCurve: "ease-in-quad" as const,
+    sectionCount: 7,
+    archiveEnergy: 4,
+    toolCharges: 2,
+    label: "Hard",
+  },
+  expert: {
+    levels: [10],
+    decayDuration: 18,
+    decayStartDelay: 0,
+    decayCurve: "ease-in-cubic" as const,
+    sectionCount: 7,
+    archiveEnergy: 3,
+    toolCharges: 1,
+    label: "Expert",
+  },
+} as const;
+
+export type DecayCurve = typeof DIFFICULTY_CONFIG[keyof typeof DIFFICULTY_CONFIG]["decayCurve"];

@@ -54,6 +54,8 @@ export function RaceGame({
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
   const roundEndedRef = useRef(false);
+  const hasTimedOutRef = useRef(false);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
     duration: content.decayDuration,
@@ -75,6 +77,28 @@ export function RaceGame({
     );
   }, [roundActions, user]);
 
+  // Handle decay timeout — auto-submit when time runs out
+  useEffect(() => {
+    if (!decayEngine.isComplete || hasTimedOutRef.current) return;
+    hasTimedOutRef.current = true;
+
+    if (hasArchived) return; // already submitted
+
+    if (selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      // No selections — submit score of 0
+      setHasArchived(true);
+      decayEngine.pause();
+      setRoundScore(0);
+      submitAction({
+        roomId,
+        action: "archive",
+        data: "0",
+      }).catch(() => {});
+    }
+  }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-end round when both have archived
   useEffect(() => {
     if (!hasArchived || !opponentArchived || roundEndedRef.current) return;
@@ -93,6 +117,19 @@ export function RaceGame({
 
     endRound({ roomId, hostScoreAdd: hostAdd, guestScoreAdd: guestAdd });
   }, [hasArchived, opponentArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Safety net: if we archived but opponent hasn't after 10s, host force-advances
+  useEffect(() => {
+    if (!hasArchived || opponentArchived || !isHost) return;
+    safetyTimerRef.current = setTimeout(() => {
+      if (roundEndedRef.current) return;
+      roundEndedRef.current = true;
+      endRound({ roomId, hostScoreAdd: roundScore, guestScoreAdd: 0 });
+    }, 10000);
+    return () => {
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    };
+  }, [hasArchived, opponentArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback(
     (sectionId: string) => {

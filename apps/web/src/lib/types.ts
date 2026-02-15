@@ -6,6 +6,12 @@ export interface PageSection {
   category: "headline" | "body" | "quote" | "statistic" | "attribution" | "metadata";
   decayOrder: number; // 1 (decays first) to 5 (decays last)
   archiveCost: number;
+  // Per-section tool analysis metadata (optional — used by analysis tools)
+  falseReason?: string;
+  sourceIssue?: string;
+  dateIssue?: string;
+  crossRefIssue?: string;
+  emotionalLanguage?: string;
 }
 
 // Complete page content (returned by content generator)
@@ -39,6 +45,27 @@ export interface ArchivedItem {
   pointsEarned: number;
   level: number;
   timestamp: number;
+}
+
+/**
+ * Validates that a PageContent object has the minimum required fields
+ * to be rendered without crashing.
+ */
+export function isValidPageContent(content: unknown): content is PageContent {
+  if (!content || typeof content !== "object") return false;
+  const c = content as Partial<PageContent>;
+  return (
+    typeof c.id === "string" &&
+    typeof c.title === "string" &&
+    Array.isArray(c.sections) &&
+    c.sections.length > 0 &&
+    c.sections.every(
+      (s) =>
+        typeof s.id === "string" &&
+        typeof s.text === "string" &&
+        typeof s.isTrue === "boolean"
+    )
+  );
 }
 
 // Game state phases
