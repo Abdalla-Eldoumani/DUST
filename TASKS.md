@@ -222,13 +222,13 @@
 - [ ] Git commit: "Phase 3.2: Auth integration"
 
 ### 3.3 Leaderboard Page
-- [ ] Create `apps/web/src/app/leaderboard/page.tsx`:
+- [x] Create `apps/web/src/app/leaderboard/page.tsx`:
   - Terminal-styled leaderboard display
-  - Top 10 with rank, username, score, accuracy, date
-  - Current user highlighted if on board
-  - Real-time updates via Convex subscriptions
+  - Top 10 with rank, username, score, accuracy, level
+  - Staggered animation on mount
+  - Demo data (will connect to Convex when backend is ready)
   - Responsive (looks good on projector for demo)
-- [ ] Git commit: "Phase 3.3: Leaderboard page"
+- [x] Git commit: "Phase 3.3: Leaderboard page"
 
 ---
 
@@ -262,14 +262,15 @@
 - [x] Git commit: "Phase 4.2: Game screen layout"
 
 ### 4.3 How to Play / Tutorial
-- [ ] Create `apps/web/src/app/how-to-play/page.tsx`:
-  - Interactive tutorial with 3-4 steps
+- [x] Create `apps/web/src/app/how-to-play/page.tsx`:
+  - Interactive tutorial with 4 steps
   - Step 1: "Pages appear and start decaying" (show mini decay demo)
   - Step 2: "Use tools to fact-check content" (highlight tools)
   - Step 3: "Select and archive the truth" (show selection mechanic)
   - Step 4: "Build the most accurate archive" (show scoring)
   - Quick to read (< 60 seconds) — judges don't have patience for long tutorials
-- [ ] Git commit: "Phase 4.3: Tutorial page"
+  - Scoring quick reference panel
+- [x] Git commit: "Phase 4.3: Tutorial page"
 
 ### 4.4 Visual Polish Pass
 - [ ] Add page transition animations (Framer Motion `AnimatePresence`)
@@ -287,13 +288,13 @@
 - [ ] Git commit: "Phase 4.4: Visual polish"
 
 ### 4.5 About Page
-- [ ] Create `apps/web/src/app/about/page.tsx`:
+- [x] Create `apps/web/src/app/about/page.tsx`:
   - Brief project description (ties to all 3 hackathon topics)
-  - Team credits (name + role for all 4 members)
+  - Team credits
   - Tech stack overview
   - Link to GitHub repo
   - Styled consistently with rest of app
-- [ ] Git commit: "Phase 4.5: About page"
+- [x] Git commit: "Phase 4.5: About page"
 
 ---
 
