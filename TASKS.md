@@ -83,15 +83,15 @@
 - [x] Git commit: "Phase 1.2: Decay engine integration"
 
 ### 1.3 Fake Web Page Renderer
-- [ ] Create `apps/web/src/components/game/fake-page/` directory
-- [ ] Create `fake-page/news-article.tsx` — renders content as a news website
-- [ ] Create `fake-page/blog-post.tsx` — renders content as a personal blog
-- [ ] Create `fake-page/social-thread.tsx` — renders content as social media posts
-- [ ] Create `fake-page/wiki-article.tsx` — renders content as an encyclopedia entry
-- [ ] Each fake page type has its own visual style (fonts, layout, colors) that decays
-- [ ] Create `fake-page/page-chrome.tsx` — fake browser chrome (URL bar, tabs) wrapping the page
-- [ ] All fake pages use `Newsreader` font for body text (feels like real web content)
-- [ ] Git commit: "Phase 1.3: Fake web page renderer variants"
+- [x] Create `apps/web/src/components/game/fake-page/` directory
+- [x] Create `fake-page/news-article.tsx` — renders content as a news website
+- [x] Create `fake-page/blog-post.tsx` — renders content as a personal blog
+- [x] Create `fake-page/social-thread.tsx` — renders content as social media posts
+- [x] Create `fake-page/wiki-article.tsx` — renders content as an encyclopedia entry
+- [x] Each fake page type has its own visual style (fonts, layout, colors) that decays
+- [x] Create `fake-page/page-chrome.tsx` — fake browser chrome (URL bar, tabs) wrapping the page
+- [x] All fake pages use `Newsreader` font for body text (feels like real web content)
+- [x] Git commit: "Phase 1.3: Fake web page renderer variants"
 
 ---
 
