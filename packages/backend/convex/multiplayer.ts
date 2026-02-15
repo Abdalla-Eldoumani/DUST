@@ -51,6 +51,8 @@ export const createRoom = mutation({
       maxRounds: 5,
       hostScore: 0,
       guestScore: 0,
+      hostPresent: true,
+      guestPresent: false,
       createdAt: now,
       updatedAt: now,
     });
@@ -88,6 +90,8 @@ export const joinRoom = mutation({
       guestUsername: username,
       guestAvatarUrl: avatarUrl,
       status: "ready",
+      hostPresent: true,
+      guestPresent: true,
       updatedAt: Date.now(),
     });
 
@@ -132,6 +136,8 @@ export const startGame = mutation({
       currentContentId: args.contentId,
       sharedEnergy: room.mode === "coop" ? 10 : undefined,
       sharedScore: room.mode === "coop" ? 0 : undefined,
+      hostPresent: true,
+      guestPresent: true,
       updatedAt: Date.now(),
     });
   },
@@ -267,6 +273,10 @@ export const setPresence = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) return;
 
+    // If a match was already ended early because someone left, freeze presence
+    // so post-game default win/lose state stays stable.
+    if (room.status === "finished" && room.currentRound < room.maxRounds) return;
+
     const isHost = room.hostClerkId === identity.subject;
     await ctx.db.patch(args.roomId, {
       ...(isHost ? { hostPresent: args.present } : { guestPresent: args.present }),
@@ -280,13 +290,63 @@ export const leaveRoom = mutation({
     roomId: v.id("multiplayerRooms"),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+
     const room = await ctx.db.get(args.roomId);
     if (!room) return;
+
+    const isHost = room.hostClerkId === identity.subject;
+    const isGuest = room.guestClerkId === identity.subject;
+    if (!isHost && !isGuest) return;
+
+    // During active gameplay, leaving marks the player absent and allows
+    // the remaining player to claim a default win after reconnect grace.
+    if (room.status === "playing" || room.status === "roundEnd") {
+      await ctx.db.patch(args.roomId, {
+        ...(isHost ? { hostPresent: false } : { guestPresent: false }),
+        updatedAt: Date.now(),
+      });
+      return;
+    }
 
     await ctx.db.patch(args.roomId, {
       status: "finished",
       updatedAt: Date.now(),
     });
+  },
+});
+
+export const claimWinByAbandonment = mutation({
+  args: {
+    roomId: v.id("multiplayerRooms"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Must be logged in");
+
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.mode !== "race") return { ended: false };
+    if (room.status !== "playing" && room.status !== "roundEnd") return { ended: false };
+
+    const isHost = room.hostClerkId === identity.subject;
+    const isGuest = room.guestClerkId === identity.subject;
+    if (!isHost && !isGuest) throw new Error("Not a room participant");
+
+    const selfPresent = isHost ? room.hostPresent !== false : room.guestPresent !== false;
+    const opponentPresent = isHost ? room.guestPresent !== false : room.hostPresent !== false;
+
+    if (!selfPresent || opponentPresent) return { ended: false };
+
+    await ctx.db.patch(args.roomId, {
+      status: "finished",
+      hostPresent: isHost,
+      guestPresent: !isHost,
+      updatedAt: Date.now(),
+    });
+
+    return { ended: true };
   },
 });
 

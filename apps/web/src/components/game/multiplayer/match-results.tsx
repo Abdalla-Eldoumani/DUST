@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Trophy, RotateCcw, Home, Circle } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { toast } from "sonner";
@@ -14,6 +13,7 @@ import { TerminalPanel } from "@/components/ui/terminal-panel";
 interface MatchResultsProps {
   roomId: Id<"multiplayerRooms">;
   mode: "race" | "coop";
+  currentRound: number;
   hostUsername: string;
   guestUsername: string;
   hostAvatarUrl: string;
@@ -23,12 +23,15 @@ interface MatchResultsProps {
   sharedScore?: number;
   maxRounds: number;
   isHost: boolean;
+  hostPresent?: boolean;
+  guestPresent?: boolean;
   opponentPresent: boolean;
 }
 
 export function MatchResults({
   roomId,
   mode,
+  currentRound,
   hostUsername,
   guestUsername,
   hostAvatarUrl,
@@ -38,9 +41,10 @@ export function MatchResults({
   sharedScore,
   maxRounds,
   isHost,
+  hostPresent,
+  guestPresent,
   opponentPresent,
 }: MatchResultsProps) {
-  const router = useRouter();
   const submitScore = useMutation(api.leaderboard.submit);
   const setPresence = useMutation(api.multiplayer.setPresence);
   const rematchMutation = useMutation(api.multiplayer.rematch);
@@ -48,6 +52,15 @@ export function MatchResults({
   const [rematchLoading, setRematchLoading] = useState(false);
 
   const opponentName = isHost ? guestUsername : hostUsername;
+  const matchEndedEarly = currentRound < maxRounds;
+  const hasDisconnectOutcome =
+    mode === "race" &&
+    matchEndedEarly &&
+    (hostPresent === false || guestPresent === false);
+  const selfPresentAtFinish = isHost ? hostPresent !== false : guestPresent !== false;
+  const opponentPresentAtFinish = isHost ? guestPresent !== false : hostPresent !== false;
+  const youWonByDefault = hasDisconnectOutcome && selfPresentAtFinish && !opponentPresentAtFinish;
+  const youLostByDefault = hasDisconnectOutcome && !selfPresentAtFinish && opponentPresentAtFinish;
 
   // Mark self as present on mount, absent on leave
   const markAbsent = useCallback(() => {
@@ -68,6 +81,7 @@ export function MatchResults({
   // Auto-submit score to leaderboard
   useEffect(() => {
     if (submitted) return;
+    if (hasDisconnectOutcome) return;
     setSubmitted(true);
 
     const score =
@@ -87,7 +101,7 @@ export function MatchResults({
         .then(() => toast.success("Score saved to leaderboard!"))
         .catch(() => { /* silent */ });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasDisconnectOutcome, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const winner =
     mode === "coop"
@@ -107,7 +121,21 @@ export function MatchResults({
     <div className="flex flex-col items-center justify-center py-16">
       <TerminalPanel title="MATCH COMPLETE" glowColor={mode === "race" ? "amber" : "green"}>
         <div className="p-8 space-y-8 text-center">
-          {mode === "race" ? (
+          {hasDisconnectOutcome ? (
+            <div>
+              <Trophy className="mx-auto mb-3 h-10 w-10 text-amber" />
+              <GlowText as="h2" color="amber" intensity="high" className="font-mono text-2xl font-bold uppercase">
+                {youWonByDefault ? "You Win by Default" : youLostByDefault ? "You Lost by Default" : "Match Ended"}
+              </GlowText>
+              <p className="mt-2 font-sans text-sm text-text-secondary">
+                {youWonByDefault
+                  ? "Everyone else left. You win this match."
+                  : youLostByDefault
+                    ? "You left during the match. Opponent wins by default."
+                    : "The match ended early because players left."}
+              </p>
+            </div>
+          ) : mode === "race" ? (
             <>
               {/* Winner announcement */}
               <div>
@@ -234,4 +262,3 @@ export function MatchResults({
     </div>
   );
 }
-
