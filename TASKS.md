@@ -194,32 +194,36 @@
 ## Phase 3: Backend Integration (Hours 9–12)
 
 ### 3.1 Convex Schema & Functions
-- [ ] Update `packages/backend/convex/schema.ts`:
+- [x] Update `packages/backend/convex/schema.ts`:
   - `gameSessions` table: userId, score, level, status, startedAt, endedAt
   - `archives` table: userId, sessionId, items[], totalScore, accuracy
-  - `leaderboard` table: userId, username, avatar, score, accuracy, level, date
+  - `leaderboard` table: userId, username, score, accuracy, level, date
   - `cachedContent` table: content, contentType, difficulty, createdAt
-- [ ] Create `packages/backend/convex/gameSessions.ts`:
+- [x] Create `packages/backend/convex/gameSessions.ts`:
   - `create` mutation — start a new game session
   - `update` mutation — update score/level during game
   - `finish` mutation — end session, compute final stats
   - `getActive` query — get user's active session
-- [ ] Create `packages/backend/convex/leaderboard.ts`:
-  - `submit` mutation — add score to leaderboard
-  - `getTop` query — top 100 scores (paginated)
+- [x] Create `packages/backend/convex/leaderboard.ts`:
+  - `submit` mutation — add score to leaderboard (upsert best score)
+  - `getTop` query — top scores (configurable limit)
   - `getUserRank` query — current user's position
-- [ ] Create `packages/backend/convex/archives.ts`:
+- [x] Create `packages/backend/convex/archives.ts`:
   - `save` mutation — persist user's archive
   - `getUserArchive` query — retrieve full archive for viewer
-- [ ] Git commit: "Phase 3.1: Convex schema and functions"
+- [x] Create `packages/backend/convex/cachedContent.ts`:
+  - `getRandom` query — random content by type/difficulty
+  - `getDemo` query — curated demo content
+  - `seed` mutation — populate cache
+- [x] Git commit: "Phase 3.1: Convex schema and functions"
 
 ### 3.2 Auth Integration
-- [ ] Verify Clerk provider is configured in `apps/web/src/components/providers.tsx`
-- [ ] Verify Convex auth is connected to Clerk in `packages/backend/convex/auth.config.ts`
-- [ ] Add guest mode: allow playing without login (but can't save to leaderboard)
-- [ ] Create sign-in redirect: after login, redirect back to game
-- [ ] Auth should be INVISIBLE in demo flow — no login screens, no barriers
-- [ ] Git commit: "Phase 3.2: Auth integration"
+- [x] Verify Clerk provider is configured in `apps/web/src/components/providers.tsx`
+- [x] Verify Convex auth is connected to Clerk in `packages/backend/convex/auth.config.ts`
+- [x] Guest mode: game plays without login, leaderboard submit requires auth
+- [x] Auth is INVISIBLE in demo flow — no login screens, no barriers
+- [x] Updated leaderboard page to use Convex data with demo fallback
+- [x] Git commit: "Phase 3.2: Auth integration"
 
 ### 3.3 Leaderboard Page
 - [x] Create `apps/web/src/app/leaderboard/page.tsx`:

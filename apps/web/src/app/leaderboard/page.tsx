@@ -3,25 +3,41 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Trophy } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@DUST/backend/convex/_generated/api";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
 
-// Static leaderboard data for demo (will be replaced by Convex queries)
+// Fallback data for demo
 const DEMO_LEADERBOARD = [
-  { rank: 1, username: "ArchiveQueen", score: 4250, accuracy: 94, level: 8 },
-  { rank: 2, username: "TruthSeeker42", score: 3800, accuracy: 88, level: 7 },
-  { rank: 3, username: "DataDiver", score: 3450, accuracy: 91, level: 7 },
-  { rank: 4, username: "FactHunter", score: 2900, accuracy: 82, level: 6 },
-  { rank: 5, username: "CriticalMind", score: 2650, accuracy: 79, level: 6 },
-  { rank: 6, username: "ArchivistPro", score: 2100, accuracy: 85, level: 5 },
-  { rank: 7, username: "InfoGuard", score: 1850, accuracy: 76, level: 5 },
-  { rank: 8, username: "PageSaver", score: 1600, accuracy: 72, level: 4 },
-  { rank: 9, username: "DustCollector", score: 1200, accuracy: 68, level: 4 },
-  { rank: 10, username: "NewArchiver", score: 800, accuracy: 65, level: 3 },
+  { username: "ArchiveQueen", score: 4250, accuracy: 94, level: 8 },
+  { username: "TruthSeeker42", score: 3800, accuracy: 88, level: 7 },
+  { username: "DataDiver", score: 3450, accuracy: 91, level: 7 },
+  { username: "FactHunter", score: 2900, accuracy: 82, level: 6 },
+  { username: "CriticalMind", score: 2650, accuracy: 79, level: 6 },
+  { username: "ArchivistPro", score: 2100, accuracy: 85, level: 5 },
+  { username: "InfoGuard", score: 1850, accuracy: 76, level: 5 },
+  { username: "PageSaver", score: 1600, accuracy: 72, level: 4 },
+  { username: "DustCollector", score: 1200, accuracy: 68, level: 4 },
+  { username: "NewArchiver", score: 800, accuracy: 65, level: 3 },
 ];
 
 export default function LeaderboardPage() {
+  const convexData = useQuery(api.leaderboard.getTop, { limit: 20 });
+
+  // Use Convex data if available and non-empty, otherwise fallback
+  const entries =
+    convexData && convexData.length > 0
+      ? convexData.map((e, i) => ({
+          rank: i + 1,
+          username: e.username,
+          score: e.score,
+          accuracy: e.accuracy,
+          level: e.level,
+        }))
+      : DEMO_LEADERBOARD.map((e, i) => ({ rank: i + 1, ...e }));
+
   return (
     <div className="relative min-h-svh bg-void">
       <ScanlineOverlay />
@@ -50,6 +66,9 @@ export default function LeaderboardPage() {
           </div>
           <p className="mt-2 font-sans text-sm text-text-secondary">
             Top archivists ranked by score
+            {convexData && convexData.length > 0 && (
+              <span className="ml-2 text-archive text-xs">LIVE</span>
+            )}
           </p>
         </div>
 
@@ -67,9 +86,9 @@ export default function LeaderboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_LEADERBOARD.map((entry, i) => (
+                {entries.map((entry, i) => (
                   <motion.tr
-                    key={entry.rank}
+                    key={`${entry.username}-${entry.rank}`}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
@@ -94,9 +113,7 @@ export default function LeaderboardPage() {
                         {entry.rank}
                       </span>
                     </td>
-                    <td className="py-2.5">
-                      {entry.username}
-                    </td>
+                    <td className="py-2.5">{entry.username}</td>
                     <td className="py-2.5 text-right tabular-nums text-archive">
                       {entry.score.toLocaleString()}
                     </td>
