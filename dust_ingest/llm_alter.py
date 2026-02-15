@@ -132,30 +132,31 @@ DIFFICULTY LEVEL: {difficulty}/10
 - maxFakeSpans: {params.maxFakeSpans}
 
 RULES:
-1. Wrap EVERY altered phrase with <FAKE: ...> or <MISLEADING: ...> tags.
-2. Only alter up to {params.maxFakeSpans} spans total.
-3. Keep unaltered elements EXACTLY identical to the original.
-4. NEVER create harmful accusations about real people/companies.
-5. If the page mentions real entities, ANONYMIZE them:
+1. Only alter up to {params.maxFakeSpans} spans total.
+2. Keep unaltered elements EXACTLY identical to the original.
+3. NEVER create harmful accusations about real people/companies.
+4. If the page mentions real entities, ANONYMIZE them:
    - Replace names with roles ("a local official", "a mid-sized retailer").
-6. Avoid actionable medical/legal advice.
-7. Fake spans must be ONLY the inserted/altered parts, NOT entire paragraphs.
-8. At difficulty 1-3: fakes are obvious, exaggerated, clearly wrong.
-9. At difficulty 7-10: fakes are subtle framing, cherry-picked context,
+5. Avoid actionable medical/legal advice.
+6. Fake spans must be ONLY the inserted/altered parts, NOT entire paragraphs.
+7. At difficulty 1-3: fakes are obvious, exaggerated, clearly wrong.
+8. At difficulty 7-10: fakes are subtle framing, cherry-picked context,
    plausible-but-wrong attribution.
-10. ALWAYS include at least one fake span and one fakeMarks entry.
-11. Do NOT split a sentence across multiple text elements when avoidable.
+9. ALWAYS include at least one fakeMarks entry.
+10. Do NOT split a sentence across multiple text elements when avoidable.
     Each text element should contain at least one complete sentence.
-12. Do NOT output "li" elements. Convert list-style text into "p" elements.
+11. Do NOT output "li" elements. Convert list-style text into "p" elements.
+12. Do NOT use inline tags like <FAKE: ...> or <MISLEADING: ...> in the text.
+    The text should read naturally. Use fakeMarks to identify fake content.
 
 OUTPUT FORMAT â€” strict JSON, no markdown fences:
 {{
   "alteredContent": [
-    {{"elementId": "...", "type": "...", "text": "...with <FAKE: altered phrase> embedded..."}},
+    {{"elementId": "...", "type": "...", "text": "...altered text reads naturally, no tags..."}},
     {{"elementId": "...", "type": "...", "text": "...unchanged text..."}}
   ],
   "fakeMarks": [
-    {{"kind": "FAKE"|"MISLEADING", "elementId": "...", "snippet": "the altered phrase only", "explanation": "why it is fake"}}
+    {{"kind": "FAKE"|"MISLEADING", "elementId": "...", "snippet": "exact fake phrase from text", "explanation": "why it is fake"}}
   ]
 }}
 
@@ -368,10 +369,11 @@ def _ensure_minimum_fake(altered: AlteredPage) -> AlteredPage:
         if not text:
             continue
 
+        # Append fallback snippet without inline tags - fakeMarks handles detection
         if text.endswith((".", "!", "?")):
-            patched_text = f"{text} <MISLEADING: {_FALLBACK_FAKE_SNIPPET}>"
+            patched_text = f"{text} {_FALLBACK_FAKE_SNIPPET}"
         else:
-            patched_text = f"{text}. <MISLEADING: {_FALLBACK_FAKE_SNIPPET}>"
+            patched_text = f"{text}. {_FALLBACK_FAKE_SNIPPET}"
         tag.clear()
         tag.append(patched_text)
 
@@ -419,8 +421,7 @@ def alter_page(
             user_content = user_prompt if attempt == 1 else (
                 user_prompt + "\n\nIMPORTANT: Return valid JSON only. "
                 "No markdown fences. No text outside the JSON object. "
-                "You MUST include at least one fakeMarks entry and at "
-                "least one corresponding <FAKE: ...> or <MISLEADING: ...> span."
+                "You MUST include at least one fakeMarks entry."
             )
             response = client.chat.completions.create(
                 model=config.llm_model,

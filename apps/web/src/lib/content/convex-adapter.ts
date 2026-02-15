@@ -37,12 +37,14 @@ export interface ConvexVariant {
 }
 
 // Regex to strip <FAKE: ...> and <MISLEADING: ...> wrapper tags
+// (legacy support for existing content that may still have inline tags)
 const TAG_RE = /<(?:FAKE|MISLEADING):\s*([^>]*)>/gi;
 const SENTENCE_END_PATTERN = /[.!?]["')\]]?(?=\s|$)/;
 
 /**
  * Strip `<FAKE: xyz>` and `<MISLEADING: xyz>` tags from text,
  * keeping the inner content so the player sees clean readable text.
+ * This is needed for backward compatibility with existing content.
  */
 function stripTags(text: string): string {
   return text.replace(TAG_RE, "$1").trim();
@@ -257,7 +259,7 @@ export function variantToPageContent(
   // Map elements to PageSections
   const parsedSections: PageSection[] = rawElements.flatMap((el, idx) => {
     const rawText = el.text ?? "";
-    const cleanText = toCompleteSentences(stripTags(rawText));
+    const cleanText = toCompleteSentences(rawText);
     const isImage = el.type === "img" && !!el.src;
 
     // Allow image-only elements through even without text
