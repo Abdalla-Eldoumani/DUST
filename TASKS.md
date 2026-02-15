@@ -46,24 +46,24 @@
 ## Phase 1: Decay Engine — The Hero Feature (Hours 1–5)
 
 ### 1.1 Core Decay Animations
-- [ ] Create `apps/web/src/lib/decay/` directory
-- [ ] Create `apps/web/src/lib/decay/text-decay.ts`:
+- [x] Create `apps/web/src/lib/decay/` directory
+- [x] Create `apps/web/src/lib/decay/text-decay.ts`:
   - `useTextDecay(text, decayProgress)` hook
   - Characters replace with random glitch chars progressively
   - Supports configurable decay curve (linear, exponential, sigmoid)
   - Fine print decays first, headlines last
-- [ ] Create `apps/web/src/lib/decay/image-decay.ts`:
+- [x] Create `apps/web/src/lib/decay/image-decay.ts`:
   - `useImageDecay(imageSrc, decayProgress)` hook
   - CSS filter chain: pixelate → desaturate → noise → fade
   - Uses canvas for pixelation effect at low performance cost
-- [ ] Create `apps/web/src/lib/decay/layout-decay.ts`:
+- [x] Create `apps/web/src/lib/decay/layout-decay.ts`:
   - `useLayoutDecay(decayProgress)` hook
   - CSS transforms that progressively break layout (skew, translate, opacity)
   - Grid/flex disruption effects
-- [ ] Create `apps/web/src/lib/decay/color-decay.ts`:
+- [x] Create `apps/web/src/lib/decay/color-decay.ts`:
   - Progressive desaturation and hue shift
   - Colors bleed into adjacent elements at high decay
-- [ ] Git commit: "Phase 1.1: Core decay animation hooks"
+- [x] Git commit: "Phase 1.1: Core decay animation hooks"
 
 ### 1.2 Decay Engine Integration
 - [ ] Create `apps/web/src/lib/decay/decay-engine.ts`:
