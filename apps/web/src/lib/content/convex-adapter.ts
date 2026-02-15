@@ -273,13 +273,17 @@ export function variantToPageContent(
     );
     const isFake = hasFakeById || hasFakeBySnippet;
 
+    // Headlines (h1, h2) and images don't cost energy
+    const isHeadline = el.type === "h1" || el.type === "h2";
+    const archiveCost = isImage || isHeadline ? 0 : 1;
+
     return [{
       id: el.elementId,
       text: cleanText,
       isTrue: isImage ? true : !isFake, // images are not misinformation targets
       category,
       decayOrder: category === "headline" ? 5 : category === "metadata" ? 1 : 3 - Math.min(idx, 2),
-      archiveCost: isImage ? 0 : 1, // images don't cost energy
+      archiveCost,
       ...(isImage ? { imageSrc: el.src, imageAlt: el.alt ?? "" } : {}),
     }];
   });
