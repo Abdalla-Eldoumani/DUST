@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
@@ -21,16 +22,16 @@ import { ArchiveButton } from "@/components/game/archive/archive-button";
 import { ScoreDisplay } from "@/components/game/scoring/score-display";
 import { RevealScreen } from "@/components/game/scoring/reveal-screen";
 import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
-import { GlowText } from "@/components/ui/glow-text";
+import { GlitchText } from "@/components/ui/glitch-text";
 import { ParticleField } from "@/components/ui/particle-field";
 
-import type { PageContent, GameResult } from "@/lib/types";
+import type { PageContent } from "@/lib/types";
 import { ArrowLeft } from "lucide-react";
 
 export default function PlayPage() {
+  const router = useRouter();
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
-  const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [screenShake, setScreenShake] = useState(false);
 
   const difficulty = useMemo(
@@ -102,8 +103,7 @@ export default function PlayPage() {
     // Demo mode: 5 curated pages; normal mode: 5 random pages
     const totalPages = store.demoMode ? 5 : 5;
     if (store.pagesCompleted >= totalPages - 1) {
-      const result = store.endGame();
-      setGameResult(result);
+      store.endGame();
       return;
     }
 
@@ -116,9 +116,12 @@ export default function PlayPage() {
 
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
-    setGameResult(null);
     store.startGame();
   }, [store]);
+
+  const handleViewLeaderboard = useCallback(() => {
+    router.push("/leaderboard");
+  }, [router]);
 
   // ─── MENU STATE ───
   if (store.gamePhase === "menu") {
@@ -126,14 +129,12 @@ export default function PlayPage() {
       <div className="flex min-h-svh flex-col items-center justify-center relative">
         <ParticleField particleCount={40} />
         <div className="relative z-10 text-center px-4">
-          <GlowText
-            as="h1"
-            color="green"
-            intensity="high"
-            className="font-mono text-6xl font-bold mb-4"
-          >
-            DUST
-          </GlowText>
+          <GlitchText
+            text="SOLO PLAYER"
+            intensity="low"
+            interval={6000}
+            className="font-mono text-4xl font-bold tracking-wider text-scan"
+          />
           <p className="font-serif text-text-secondary mb-8 max-w-sm mx-auto">
             Analyze web pages for misinformation. Archive the truth before it
             decays.
@@ -166,12 +167,13 @@ export default function PlayPage() {
   }
 
   // ─── GAME OVER ───
-  if (store.gamePhase === "gameover" && gameResult) {
+  if (store.gamePhase === "gameover" && store.lastGameResult) {
     return (
       <GameOverScreen
-        result={gameResult}
+        result={store.lastGameResult}
         onPlayAgain={handlePlayAgain}
-        onViewLeaderboard={() => (window.location.href = "/leaderboard")}
+        onGoHome={() => (window.location.href = "/")}
+        onViewLeaderboard={handleViewLeaderboard}
       />
     );
   }
@@ -230,9 +232,9 @@ export default function PlayPage() {
       animate={
         screenShake
           ? {
-              x: [0, -3, 3, -2, 2, 0],
-              y: [0, 2, -2, 1, -1, 0],
-            }
+            x: [0, -3, 3, -2, 2, 0],
+            y: [0, 2, -2, 1, -1, 0],
+          }
           : {}
       }
       transition={screenShake ? { duration: 0.4 } : {}}
@@ -296,16 +298,17 @@ export default function PlayPage() {
         </div>
 
         {/* Right panel — 30-35% */}
-        <div className="w-[320px] shrink-0 border-l border-white/5 bg-surface/20 flex flex-col overflow-y-auto">
-          <div className="p-3 space-y-3 flex-1">
+        <div className="w-[340px] shrink-0 border-l border-white/5 bg-surface/20 flex flex-col overflow-hidden">
+          <div className="p-3 flex-1 min-h-0 flex flex-col gap-4 overflow-y-auto">
             {/* Tools */}
             <ToolPanel
               factCheckData={page.factCheckData}
               decayProgress={store.decayProgress}
+              className="flex-1 min-h-[420px]"
             />
 
             {/* Energy */}
-            <div className="px-1">
+            <div className="px-1 space-y-1.5">
               <EnergyBar
                 current={store.archiveEnergy}
                 max={store.maxArchiveEnergy}
@@ -313,8 +316,8 @@ export default function PlayPage() {
             </div>
 
             {/* Hint */}
-            <div className="px-1">
-              <p className="font-sans text-xs text-text-ghost">
+            <div className="px-1 pb-1">
+              <p className="font-sans text-sm leading-relaxed text-text-ghost">
                 {store.selectedSections.length === 0
                   ? "Click sections in the page to mark them for archiving."
                   : `${store.selectedSections.length} section${store.selectedSections.length > 1 ? "s" : ""} selected. Use tools to verify before archiving.`}

@@ -19,6 +19,7 @@ interface GameState {
   score: number;
   combo: number;
   bestCombo: number;
+  lastGameResult: GameResult | null;
 
   // Archive energy
   archiveEnergy: number;
@@ -59,6 +60,7 @@ const initialState = {
   score: 0,
   combo: 0,
   bestCombo: 0,
+  lastGameResult: null as GameResult | null,
   archiveEnergy: GAME_CONSTANTS.BASE_ARCHIVE_ENERGY,
   maxArchiveEnergy: GAME_CONSTANTS.BASE_ARCHIVE_ENERGY,
   currentPage: null as PageContent | null,
@@ -160,20 +162,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { combo, bestCombo, score, archive } = get();
     const newCombo = allCorrect ? combo + 1 : 0;
 
-    // Apply combo multiplier to points
-    const comboMultiplier =
-      1 + combo * GAME_CONSTANTS.COMBO_MULTIPLIER_INCREMENT;
-    const roundPoints = newItems.reduce(
-      (sum, item) =>
-        sum +
-        (item.wasCorrect
-          ? Math.round(item.pointsEarned * comboMultiplier)
-          : item.pointsEarned),
+    // Streak scaling is deterministic: streak 1 => x1, streak 2 => x2, etc.
+    const comboMultiplier = allCorrect ? Math.max(newCombo, 1) : 1;
+    const scoredItems = newItems.map((item) =>
+      item.wasCorrect
+        ? {
+            ...item,
+            pointsEarned: Math.round(item.pointsEarned * comboMultiplier),
+          }
+        : item
+    );
+    const roundPoints = scoredItems.reduce(
+      (sum, item) => sum + item.pointsEarned,
       0
     );
 
     set({
-      archive: [...archive, ...newItems],
+      archive: [...archive, ...scoredItems],
       score: Math.max(0, score + roundPoints),
       combo: newCombo,
       bestCombo: Math.max(bestCombo, newCombo),
@@ -224,7 +229,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       level: get().currentLevel,
     };
 
-    set({ gamePhase: "gameover" });
+    set({
+      gamePhase: "gameover",
+      lastGameResult: result,
+    });
     return result;
   },
 

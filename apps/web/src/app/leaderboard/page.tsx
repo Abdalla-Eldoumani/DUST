@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
@@ -12,6 +12,7 @@ import { UserRankCard, NoRankCard } from "@/components/leaderboard/user-rank-car
 import { LeaderboardTable } from "@/components/leaderboard/leaderboard-table";
 
 export default function LeaderboardPage() {
+  const router = useRouter();
   const entries = useQuery(api.leaderboard.getTop, { limit: 50 });
   const myRank = useQuery(api.leaderboard.getMyRank);
   const { user } = useUser();
@@ -23,13 +24,20 @@ export default function LeaderboardPage() {
       <div className="relative z-10 mx-auto max-w-3xl px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            href="/"
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
             className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans mb-4"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
-          </Link>
+          </button>
 
           <div className="flex items-center gap-3">
             <Trophy className="h-6 w-6 text-amber" />

@@ -58,15 +58,7 @@ export default function MultiplayerLobby() {
 
       <div className="relative z-10 mx-auto max-w-3xl px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans mb-4"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
-          </Link>
-
+        <div className="mb-8 text-center">
           <GlitchText
             text="MULTIPLAYER"
             intensity="low"
@@ -90,22 +82,20 @@ export default function MultiplayerLobby() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setMode("race")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 font-mono text-xs uppercase tracking-wider border transition-colors ${
-                      mode === "race"
-                        ? "border-scan/60 bg-scan/10 text-scan"
-                        : "border-white/10 text-text-ghost hover:border-white/20"
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 font-mono text-xs uppercase tracking-wider border transition-colors ${mode === "race"
+                      ? "border-scan/60 bg-scan/10 text-scan"
+                      : "border-white/10 text-text-ghost hover:border-white/20"
+                      }`}
                   >
                     <Swords className="h-3.5 w-3.5" />
                     Race
                   </button>
                   <button
                     onClick={() => setMode("coop")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 font-mono text-xs uppercase tracking-wider border transition-colors ${
-                      mode === "coop"
-                        ? "border-archive/60 bg-archive/10 text-archive"
-                        : "border-white/10 text-text-ghost hover:border-white/20"
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 font-mono text-xs uppercase tracking-wider border transition-colors ${mode === "coop"
+                      ? "border-archive/60 bg-archive/10 text-archive"
+                      : "border-white/10 text-text-ghost hover:border-white/20"
+                      }`}
                   >
                     <Handshake className="h-3.5 w-3.5" />
                     Co-op
@@ -163,6 +153,16 @@ export default function MultiplayerLobby() {
               </button>
             </div>
           </TerminalPanel>
+        </div>
+
+        <div className="text-center mt-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Menu
+          </Link>
         </div>
       </div>
     </div>

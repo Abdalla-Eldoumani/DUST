@@ -12,12 +12,14 @@ import { GlowText } from "@/components/ui/glow-text";
 interface GameOverScreenProps {
   result: GameResult;
   onPlayAgain: () => void;
+  onGoHome: () => void;
   onViewLeaderboard: () => void;
 }
 
 export function GameOverScreen({
   result,
   onPlayAgain,
+  onGoHome,
   onViewLeaderboard,
 }: GameOverScreenProps) {
   const submitScore = useMutation(api.leaderboard.submit);
@@ -153,16 +155,22 @@ export function GameOverScreen({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={onPlayAgain}
-            className="flex-1 py-3 font-mono text-sm uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
+            className="flex-1 min-w-[140px] py-3 font-mono text-sm uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
           >
             Play Again
           </button>
           <button
+            onClick={onGoHome}
+            className="flex-1 min-w-[140px] py-3 font-mono text-sm uppercase tracking-wider bg-amber/10 text-amber border border-amber/30 hover:bg-amber/20 transition-colors"
+          >
+            Home
+          </button>
+          <button
             onClick={onViewLeaderboard}
-            className="flex-1 py-3 font-mono text-sm uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
+            className="flex-1 min-w-[140px] py-3 font-mono text-sm uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
           >
             Leaderboard
           </button>
