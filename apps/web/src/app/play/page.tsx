@@ -25,13 +25,18 @@ import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
 import { GlitchText } from "@/components/ui/glitch-text";
 import { ParticleField } from "@/components/ui/particle-field";
 
-import type { PageContent } from "@/lib/types";
+import type { ArchivedItem, PageContent } from "@/lib/types";
+import { GAME_CONSTANTS } from "@/lib/constants";
 import { ArrowLeft } from "lucide-react";
 
 export default function PlayPage() {
   const router = useRouter();
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
+  const [timeoutReveal, setTimeoutReveal] = useState<{
+    items: ArchivedItem[];
+    roundScore: number;
+  } | null>(null);
   const [screenShake, setScreenShake] = useState(false);
 
   const difficulty = useMemo(
@@ -71,14 +76,13 @@ export default function PlayPage() {
     }
   }, [Math.round(store.decayProgress * 30)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-archive (or force end) when decay completes
+  // Auto-archive (or force penalty reveal) when decay completes
   useEffect(() => {
     if (decayEngine.isComplete && store.gamePhase === "playing") {
       if (store.selectedSections.length > 0) {
         handleArchive();
       } else {
-        // No sections selected — skip to next page or end game
-        handleNextPage();
+        handleTimeoutWithoutArchive();
       }
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -96,10 +100,37 @@ export default function PlayPage() {
 
   const handleArchive = useCallback(() => {
     decayEngine.pause();
+    setTimeoutReveal(null);
     store.archiveSelected();
   }, [decayEngine, store]);
 
+  const handleTimeoutWithoutArchive = useCallback(() => {
+    decayEngine.pause();
+    if (!store.currentPage) return;
+
+    const timedOutItems: ArchivedItem[] = store.currentPage.sections.map((section) => ({
+      sectionId: section.id,
+      sectionText: section.text,
+      wasCorrect: false,
+      pointsEarned: -GAME_CONSTANTS.CORRECT_ARCHIVE_POINTS,
+      level: store.currentLevel,
+      timestamp: Date.now(),
+    }));
+
+    const roundScore = timedOutItems.reduce((sum, item) => sum + item.pointsEarned, 0);
+
+    useGameStore.setState((state) => ({
+      score: Math.max(0, state.score + roundScore),
+      combo: 0,
+      gamePhase: "revealing",
+    }));
+
+    setTimeoutReveal({ items: timedOutItems, roundScore });
+  }, [decayEngine, store.currentLevel, store.currentPage]);
+
   const handleNextPage = useCallback(() => {
+    setTimeoutReveal(null);
+
     // Demo mode: 5 curated pages; normal mode: 5 random pages
     const totalPages = store.demoMode ? 5 : 5;
     if (store.pagesCompleted >= totalPages - 1) {
@@ -116,6 +147,7 @@ export default function PlayPage() {
 
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
+    setTimeoutReveal(null);
     store.startGame();
   }, [store]);
 
@@ -128,36 +160,36 @@ export default function PlayPage() {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center relative">
         <ParticleField particleCount={40} />
-        <div className="relative z-10 text-center px-4">
+        <div className="relative z-10 w-full max-w-4xl px-6 text-center">
           <GlitchText
             text="SOLO PLAYER"
             intensity="low"
             interval={6000}
-            className="font-mono text-4xl font-bold tracking-wider text-scan"
+            className="font-mono text-5xl font-bold tracking-[0.12em] text-scan md:text-7xl"
           />
-          <p className="font-serif text-text-secondary mb-8 max-w-sm mx-auto">
+          <p className="mx-auto mb-12 mt-4 max-w-2xl font-serif text-base leading-relaxed text-text-secondary md:text-xl">
             Analyze web pages for misinformation. Archive the truth before it
             decays.
           </p>
 
-          <div className="flex flex-col gap-3 items-center">
+          <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5">
             <button
               onClick={() => store.startGame(false)}
-              className="px-8 py-3 font-mono text-sm uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
+              className="w-full px-8 py-5 font-mono text-2xl uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
             >
               Start Game
             </button>
             <button
               onClick={() => store.startGame(true)}
-              className="px-8 py-3 font-mono text-sm uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
+              className="w-full px-8 py-5 font-mono text-2xl uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
             >
               Demo Mode
             </button>
             <Link
               href="/"
-              className="flex items-center gap-1.5 mt-4 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
+              className="mt-4 flex items-center gap-2 text-lg text-text-ghost hover:text-text-secondary transition-colors font-sans md:text-xl"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-5 w-5" />
               Back to Menu
             </Link>
           </div>
@@ -222,7 +254,14 @@ export default function PlayPage() {
   // ─── MAIN GAMEPLAY ───
   const page = store.currentPage;
   const FakePageComponent = getFakePageComponent(page.contentType);
-  const latestItems = store.archive.slice(-store.selectedSections.length);
+  const latestItems =
+    store.selectedSections.length > 0
+      ? store.archive.slice(-store.selectedSections.length)
+      : [];
+  const revealItems = timeoutReveal ? timeoutReveal.items : latestItems;
+  const revealRoundScore = timeoutReveal
+    ? timeoutReveal.roundScore
+    : latestItems.reduce((sum, i) => sum + i.pointsEarned, 0);
 
   const isCritical = store.decayProgress >= 0.75;
 
@@ -352,14 +391,15 @@ export default function PlayPage() {
 
       {/* Reveal overlay */}
       <AnimatePresence>
-        {store.gamePhase === "revealing" && latestItems.length > 0 && (
+        {store.gamePhase === "revealing" &&
+          (timeoutReveal !== null || latestItems.length > 0) && (
           <RevealScreen
-            items={latestItems}
-            roundScore={latestItems.reduce((sum, i) => sum + i.pointsEarned, 0)}
+            items={revealItems}
+            roundScore={revealRoundScore}
             combo={store.combo}
             onContinue={handleNextPage}
           />
-        )}
+          )}
       </AnimatePresence>
     </motion.div>
   );
