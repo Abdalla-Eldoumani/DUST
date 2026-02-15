@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
+import { LogOut } from "lucide-react";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
@@ -247,6 +248,12 @@ export default function PlayPage() {
     store.startGame(demoMode);
   }, [store]);
 
+  const handleLeaveGame = useCallback(() => {
+    decayEngine.pause();
+    setTimeoutReveal(null);
+    store.resetGame();
+  }, [decayEngine, store]);
+
   // ─── MENU STATE ───
   if (store.gamePhase === "menu") {
     return (
@@ -374,11 +381,22 @@ export default function PlayPage() {
           combo={store.combo}
           level={store.currentLevel}
         />
-        <div className="flex-1 max-w-xs ml-6">
-          <DecayTimer
-            progress={store.decayProgress}
-            remaining={decayEngine.remaining}
-          />
+        <div className="ml-6 flex flex-1 items-center justify-end gap-3">
+          {store.gamePhase === "playing" && (
+            <button
+              onClick={handleLeaveGame}
+              className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-decay/40 hover:text-decay"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Leave Game
+            </button>
+          )}
+          <div className="w-full max-w-xs">
+            <DecayTimer
+              progress={store.decayProgress}
+              remaining={decayEngine.remaining}
+            />
+          </div>
         </div>
       </div>
 

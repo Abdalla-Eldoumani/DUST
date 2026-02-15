@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import type { PageContent } from "@/lib/types";
 import { getContentById, getRandomCachedPage } from "@/lib/content/content-cache";
@@ -19,6 +20,7 @@ import { OpponentStatus } from "./opponent-status";
 import { PingSystem } from "./ping-system";
 import { GlowText } from "@/components/ui/glow-text";
 import { useMultiplayerStore } from "@/store/multiplayer-store";
+import { LogOut } from "lucide-react";
 
 interface CoopGameProps {
   roomId: Id<"multiplayerRooms">;
@@ -41,10 +43,12 @@ export function CoopGame({
   sharedEnergy,
   sharedScore,
 }: CoopGameProps) {
+  const router = useRouter();
   const { user } = useUser();
   const submitAction = useMutation(api.multiplayer.submitAction);
   const endRound = useMutation(api.multiplayer.endRound);
   const updateEnergy = useMutation(api.multiplayer.updateSharedEnergy);
+  const leaveRoom = useMutation(api.multiplayer.leaveRoom);
   const roundActions = useQuery(api.multiplayer.getRoundActions, {
     roomId,
     round: currentRound,
@@ -67,6 +71,7 @@ export function CoopGame({
   const [decayProgress, setDecayProgress] = useState(0);
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
+  const [leaving, setLeaving] = useState(false);
   const roundEndedRef = useRef(false);
   const hasTimedOutRef = useRef(false);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,6 +238,17 @@ export function CoopGame({
     }
   }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction]);
 
+  const handleLeaveGame = useCallback(async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await leaveRoom({ roomId });
+    } catch {
+      // continue redirect even if leave call fails
+    }
+    router.push("/multiplayer");
+  }, [leaving, leaveRoom, roomId, router]);
+
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top bar */}
@@ -245,7 +261,17 @@ export function CoopGame({
             Team Score: {sharedScore}
           </span>
         </div>
-        <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLeaveGame}
+            disabled={leaving}
+            className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-decay/40 hover:text-decay disabled:opacity-50"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {leaving ? "Leaving..." : "Leave Game"}
+          </button>
+          <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        </div>
       </div>
 
       {/* Partner status */}
