@@ -1,0 +1,33 @@
+# Starting Prompt for Claude Code (Plan Mode)
+
+Copy everything below the line and paste it into Claude Code on Plan Mode:
+
+---
+
+You are building **DUST**, a hackathon project for Calgary Hacks 2026. Read the following files in this exact order before doing ANYTHING:
+
+1. `CLAUDE.md` (root) — project overview, architecture, design system, game design document
+2. `TASKS.md` — your ordered task list, check off items as you complete them
+3. `apps/web/CLAUDE.md` — frontend architecture
+4. `apps/web/src/CLAUDE.md` — source structure and conventions  
+5. `apps/web/src/app/CLAUDE.md` — page specs and route map (contains detailed ASCII layout for game screen)
+6. `apps/web/src/components/CLAUDE.md` — component tree and design rules
+7. `apps/web/src/lib/CLAUDE.md` — core logic, decay engine specs, content generation, types
+8. `packages/backend/CLAUDE.md` — Convex backend overview
+9. `packages/backend/convex/CLAUDE.md` — schema and function specs
+
+After reading ALL of these, create a plan to execute TASKS.md from Phase 0 through Phase 5 in order.
+
+**Critical context:**
+- This is a 24-HOUR HACKATHON. Speed matters. Don't over-engineer.
+- The DECAY ENGINE (Phase 1) is the hero feature — it must look CINEMATIC, not broken.
+- The DESIGN must NOT look like generic AI output. Follow the design system in root CLAUDE.md exactly: dark theme, Space Mono + Newsreader + DM Sans fonts, phosphor glow effects, terminal-panel aesthetics, CRT scanlines, asymmetric layouts.
+- The game uses Convex for backend, Clerk for auth, and Claude API for content generation.
+- Pre-generate cached content so the demo NEVER depends on live API calls.
+- The game must be playable WITHOUT login (guest mode).
+- Update TASKS.md checkboxes as you complete each task.
+- Git commit after each task group (labeled in TASKS.md).
+
+**Start with Phase 0: install dependencies, set up fonts, create the CSS custom properties, and build the design system foundation components (scanline overlay, noise texture, glow text, terminal panel). Then move to Phase 1: the decay engine.**
+
+Begin.
