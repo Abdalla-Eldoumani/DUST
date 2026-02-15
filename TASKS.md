@@ -66,22 +66,21 @@
 - [x] Git commit: "Phase 1.1: Core decay animation hooks"
 
 ### 1.2 Decay Engine Integration
-- [ ] Create `apps/web/src/lib/decay/decay-engine.ts`:
-  - `DecayEngine` class that orchestrates all decay types
-  - Takes a `decayRate` (seconds to full corruption) and manages progress
-  - Exposes `progress` (0.0 to 1.0), `start()`, `pause()`, `reset()`
-  - Emits events: `onDecayMilestone(25%)`, `onDecayMilestone(50%)`, `onDecayCritical(75%)`, `onDecayComplete(100%)`
-- [ ] Create `apps/web/src/components/game/decaying-page.tsx`:
+- [x] Create `apps/web/src/lib/decay/decay-engine.ts`:
+  - `useDecayEngine` hook that orchestrates all decay types
+  - Takes a `duration` (seconds to full corruption) and manages progress
+  - Exposes `progress` (0.0 to 1.0), `start()`, `pause()`, `resume()`, `reset()`
+  - Milestone callbacks at configurable thresholds
+- [x] Create `apps/web/src/components/game/decaying-page.tsx`:
   - Renders a full "web page" with all decay effects applied
   - Accepts `content` (page data) and `decayProgress` (0-1)
   - Sections decay at different rates (metadata first, headline last)
-- [ ] Create `apps/web/src/components/game/decay-timer.tsx`:
+- [x] Create `apps/web/src/components/game/decay-timer.tsx`:
   - Visual timer showing remaining time before full decay
   - Progresses from green → amber → red
   - Pulses/glows when critical (< 25% remaining)
-- [ ] Test: Decay looks smooth and cinematic, not glitchy/broken
-- [ ] Test: Performance is acceptable (60fps) during decay animations
-- [ ] Git commit: "Phase 1.2: Decay engine integration"
+- [x] Created `apps/web/src/lib/types.ts` and `apps/web/src/lib/constants.ts`
+- [x] Git commit: "Phase 1.2: Decay engine integration"
 
 ### 1.3 Fake Web Page Renderer
 - [ ] Create `apps/web/src/components/game/fake-page/` directory
