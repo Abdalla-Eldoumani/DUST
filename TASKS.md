@@ -98,7 +98,7 @@
 ## Phase 2: Game Core (Hours 5–9)
 
 ### 2.1 Game State Management
-- [ ] Create `apps/web/src/store/game-store.ts` (Zustand):
+- [x] Create `apps/web/src/store/game-store.ts` (Zustand):
   - `gamePhase`: 'menu' | 'playing' | 'analyzing' | 'scoring' | 'results' | 'gameover'
   - `currentLevel`: number (1-10+)
   - `score`: number
@@ -110,32 +110,32 @@
   - `archive`: ArchivedItem[] (what the player has saved)
   - `selectedSections`: string[] (sections marked for archiving this round)
   - Actions: `startGame()`, `nextPage()`, `selectSection()`, `archiveSelected()`, `revealResults()`, `resetGame()`
-- [ ] Create `apps/web/src/lib/types.ts`:
+- [x] Create `apps/web/src/lib/types.ts`:
   - `PageContent` type (title, sections[], contentType, decayRate, metadata)
   - `PageSection` type (id, text, isTrue, category, decayOrder)
   - `ArchivedItem` type (section, wasCorrect, timestamp, level)
   - `GameResult` type (score, accuracy, archiveSize, timePlayed)
   - `FactCheckResult` type (credibility, flags, sources)
-- [ ] Git commit: "Phase 2.1: Game state management"
+- [x] Git commit: "Phase 2.1: Game state management"
 
 ### 2.2 Content Generation
-- [ ] Create `apps/web/src/lib/content/generate-page.ts`:
+- [x] Create `apps/web/src/lib/content/generate-page.ts`:
   - Server action or API route that calls Claude API
   - System prompt that generates realistic web content with embedded misinfo
   - Returns structured `PageContent` with truth/false metadata per section
   - Handles API errors gracefully (fall back to cached content)
-- [ ] Create `apps/web/src/lib/content/content-cache.ts`:
-  - 10-15 pre-generated pages stored as JSON (fallback content)
+- [x] Create `apps/web/src/lib/content/content-cache.ts`:
+  - 12 pre-generated pages stored as TypeScript (fallback content)
   - Load cached content when API is slow or unavailable
   - Variety across content types and difficulty levels
-- [ ] Create `apps/web/src/lib/content/difficulty.ts`:
+- [x] Create `apps/web/src/lib/content/difficulty.ts`:
   - Maps level number to decay rate, misinfo subtlety, and energy allocation
   - Level 1-3: Obvious misinfo, 60s decay, generous energy
   - Level 4-6: Subtle misinfo, 40s decay, moderate energy
   - Level 7-9: Very subtle misinfo, 25s decay, tight energy
   - Level 10+: Expert mode
-- [ ] Pre-generate and save 15 cached pages across all content types and difficulties
-- [ ] Git commit: "Phase 2.2: Content generation system"
+- [x] Pre-generate and save 12 cached pages across all content types and difficulties
+- [x] Git commit: "Phase 2.2: Content generation system"
 
 ### 2.3 Fact-Check Tools UI
 - [ ] Create `apps/web/src/components/game/tools/` directory
