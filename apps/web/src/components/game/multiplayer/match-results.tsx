@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Trophy, RotateCcw, Home, Circle } from "lucide-react";
 import { useMutation } from "convex/react";
@@ -9,41 +9,28 @@ import { toast } from "sonner";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
+import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
 
 interface MatchResultsProps {
   roomId: Id<"multiplayerRooms">;
   mode: "race" | "coop";
   currentRound: number;
-  hostUsername: string;
-  guestUsername: string;
-  hostAvatarUrl: string;
-  guestAvatarUrl: string;
-  hostScore: number;
-  guestScore: number;
-  sharedScore?: number;
   maxRounds: number;
   isHost: boolean;
-  hostPresent?: boolean;
-  guestPresent?: boolean;
-  opponentPresent: boolean;
+  players: PlayerInfo[];
+  myClerkId: string;
+  sharedScore?: number;
 }
 
 export function MatchResults({
   roomId,
   mode,
   currentRound,
-  hostUsername,
-  guestUsername,
-  hostAvatarUrl,
-  guestAvatarUrl,
-  hostScore,
-  guestScore,
-  sharedScore,
   maxRounds,
   isHost,
-  hostPresent,
-  guestPresent,
-  opponentPresent,
+  players,
+  myClerkId,
+  sharedScore,
 }: MatchResultsProps) {
   const submitScore = useMutation(api.leaderboard.submit);
   const setPresence = useMutation(api.multiplayer.setPresence);
@@ -51,16 +38,32 @@ export function MatchResults({
   const [submitted, setSubmitted] = useState(false);
   const [rematchLoading, setRematchLoading] = useState(false);
 
-  const opponentName = isHost ? guestUsername : hostUsername;
+  const me = players.find((p) => p.clerkId === myClerkId);
+  const otherPlayers = players.filter((p) => p.clerkId !== myClerkId);
+
   const matchEndedEarly = currentRound < maxRounds;
-  const hasDisconnectOutcome =
-    mode === "race" &&
-    matchEndedEarly &&
-    (hostPresent === false || guestPresent === false);
-  const selfPresentAtFinish = isHost ? hostPresent !== false : guestPresent !== false;
-  const opponentPresentAtFinish = isHost ? guestPresent !== false : hostPresent !== false;
-  const youWonByDefault = hasDisconnectOutcome && selfPresentAtFinish && !opponentPresentAtFinish;
-  const youLostByDefault = hasDisconnectOutcome && !selfPresentAtFinish && opponentPresentAtFinish;
+
+  // Check disconnect outcomes
+  const hasDisconnectOutcome = mode === "race" && matchEndedEarly &&
+    players.some((p) => p.present === false);
+
+  const selfPresentAtFinish = me?.present !== false;
+  const allOthersAbsent = otherPlayers.every((p) => !p.present);
+  const youWonByDefault = hasDisconnectOutcome && selfPresentAtFinish && allOthersAbsent;
+  const youLostByDefault = hasDisconnectOutcome && !selfPresentAtFinish;
+
+  // Sort players by score for race mode
+  const rankedPlayers = useMemo(
+    () => [...players].sort((a, b) => b.score - a.score),
+    [players]
+  );
+
+  const winner = mode === "race" && rankedPlayers.length >= 2 && rankedPlayers[0].score !== rankedPlayers[1].score
+    ? rankedPlayers[0]
+    : null;
+
+  // Any other player still present?
+  const anyOtherPresent = otherPlayers.some((p) => p.present);
 
   // Mark self as present on mount, absent on leave
   const markAbsent = useCallback(() => {
@@ -70,7 +73,6 @@ export function MatchResults({
   useEffect(() => {
     setPresence({ roomId, present: true }).catch(() => { });
 
-    // Handle tab close / navigation
     window.addEventListener("beforeunload", markAbsent);
     return () => {
       window.removeEventListener("beforeunload", markAbsent);
@@ -84,17 +86,14 @@ export function MatchResults({
     if (hasDisconnectOutcome) return;
     setSubmitted(true);
 
-    const score =
-      mode === "coop"
-        ? sharedScore ?? 0
-        : isHost
-          ? hostScore
-          : guestScore;
+    const score = mode === "coop"
+      ? sharedScore ?? 0
+      : me?.score ?? 0;
 
     if (score > 0) {
       submitScore({
         score,
-        accuracy: 75, // approximate for multiplayer
+        accuracy: 75,
         level: maxRounds,
         pagesCompleted: maxRounds,
       })
@@ -102,15 +101,6 @@ export function MatchResults({
         .catch(() => { /* silent */ });
     }
   }, [hasDisconnectOutcome, submitted]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const winner =
-    mode === "coop"
-      ? null
-      : hostScore > guestScore
-        ? hostUsername
-        : guestScore > hostScore
-          ? guestUsername
-          : null;
 
   const handleLeave = (path: string) => {
     markAbsent();
@@ -131,7 +121,7 @@ export function MatchResults({
                 {youWonByDefault
                   ? "Everyone else left. You win this match."
                   : youLostByDefault
-                    ? "You left during the match. Opponent wins by default."
+                    ? "You left during the match. Remaining players win by default."
                     : "The match ended early because players left."}
               </p>
             </div>
@@ -142,7 +132,7 @@ export function MatchResults({
                 <Trophy className="mx-auto mb-3 h-10 w-10 text-amber" />
                 {winner ? (
                   <GlowText as="h2" color="amber" intensity="high" className="font-mono text-2xl font-bold uppercase">
-                    {winner} Wins!
+                    {winner.username} Wins!
                   </GlowText>
                 ) : (
                   <GlowText as="h2" color="amber" intensity="high" className="font-mono text-2xl font-bold uppercase">
@@ -151,33 +141,32 @@ export function MatchResults({
                 )}
               </div>
 
-              {/* Score comparison */}
-              <div className="flex items-center justify-center gap-8">
-                <div className="text-center">
-                  <img src={hostAvatarUrl} alt="" className="mx-auto mb-2 h-12 w-12 rounded-full" />
-                  <p className="font-mono text-xs text-text-ghost mb-1">{hostUsername}</p>
-                  <GlowText
-                    as="p"
-                    color={hostScore >= guestScore ? "green" : "amber"}
-                    intensity="medium"
-                    className="font-mono text-3xl font-bold"
+              {/* Ranked scoreboard */}
+              <div className="space-y-3">
+                {rankedPlayers.map((player, idx) => (
+                  <div
+                    key={player.clerkId}
+                    className={`flex items-center justify-center gap-4 ${
+                      idx === 0 && winner ? "scale-110" : ""
+                    }`}
                   >
-                    {hostScore}
-                  </GlowText>
-                </div>
-                <span className="font-mono text-lg text-text-ghost">vs</span>
-                <div className="text-center">
-                  <img src={guestAvatarUrl} alt="" className="mx-auto mb-2 h-12 w-12 rounded-full" />
-                  <p className="font-mono text-xs text-text-ghost mb-1">{guestUsername}</p>
-                  <GlowText
-                    as="p"
-                    color={guestScore >= hostScore ? "green" : "amber"}
-                    intensity="medium"
-                    className="font-mono text-3xl font-bold"
-                  >
-                    {guestScore}
-                  </GlowText>
-                </div>
+                    <span className="font-mono text-xs text-text-ghost w-6 text-right">
+                      #{idx + 1}
+                    </span>
+                    <img src={player.avatarUrl} alt="" className="h-8 w-8 rounded-full" />
+                    <span className="font-mono text-sm text-text-secondary min-w-[100px] text-left">
+                      {player.username}
+                    </span>
+                    <GlowText
+                      as="span"
+                      color={idx === 0 ? "green" : "amber"}
+                      intensity={idx === 0 ? "high" : "medium"}
+                      className="font-mono text-2xl font-bold min-w-[80px]"
+                    >
+                      {player.score}
+                    </GlowText>
+                  </div>
+                ))}
               </div>
             </>
           ) : (
@@ -190,10 +179,13 @@ export function MatchResults({
                 </GlowText>
               </div>
 
-              <div className="flex items-center justify-center gap-4">
-                <img src={hostAvatarUrl} alt="" className="h-10 w-10 rounded-full" />
-                <span className="font-mono text-text-ghost">&</span>
-                <img src={guestAvatarUrl} alt="" className="h-10 w-10 rounded-full" />
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {players.map((player, idx) => (
+                  <div key={player.clerkId} className="flex items-center gap-2">
+                    {idx > 0 && <span className="font-mono text-text-ghost">&</span>}
+                    <img src={player.avatarUrl} alt="" className="h-10 w-10 rounded-full" />
+                  </div>
+                ))}
               </div>
 
               <GlowText as="p" color="green" intensity="high" className="font-mono text-4xl font-bold">
@@ -205,28 +197,34 @@ export function MatchResults({
             </>
           )}
 
-          {/* Opponent presence indicator */}
+          {/* Other players presence */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${opponentPresent
-                ? "border-archive/30 bg-archive/5"
-                : "border-white/10 bg-white/5"
-              }`}
+            className="flex items-center justify-center gap-3 flex-wrap"
           >
-            <Circle
-              className={`h-2.5 w-2.5 ${opponentPresent
-                  ? "text-archive fill-archive"
-                  : "text-text-ghost fill-text-ghost"
+            {otherPlayers.map((player) => (
+              <div
+                key={player.clerkId}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${
+                  player.present
+                    ? "border-archive/30 bg-archive/5"
+                    : "border-white/10 bg-white/5"
                 }`}
-            />
-            <span className={`font-mono text-xs ${opponentPresent ? "text-archive" : "text-text-ghost"
-              }`}>
-              {opponentPresent
-                ? `${opponentName} is still here`
-                : `${opponentName} has left`}
-            </span>
+              >
+                <Circle
+                  className={`h-2 w-2 ${
+                    player.present
+                      ? "text-archive fill-archive"
+                      : "text-text-ghost fill-text-ghost"
+                  }`}
+                />
+                <span className={`font-mono text-xs ${player.present ? "text-archive" : "text-text-ghost"}`}>
+                  {player.username}
+                </span>
+              </div>
+            ))}
           </motion.div>
 
           {/* Actions */}

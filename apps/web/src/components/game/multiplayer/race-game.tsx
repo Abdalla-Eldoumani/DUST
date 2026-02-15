@@ -19,14 +19,14 @@ import { DecayTimer } from "@/components/game/decay-timer";
 import { OpponentStatus } from "./opponent-status";
 import { GlowText } from "@/components/ui/glow-text";
 import { LogOut } from "lucide-react";
+import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
 
 interface RaceGameProps {
   roomId: Id<"multiplayerRooms">;
   currentRound: number;
   contentId: string;
   isHost: boolean;
-  opponentName: string;
-  opponentAvatar: string;
+  otherPlayers: PlayerInfo[];
 }
 
 export function RaceGame({
@@ -34,8 +34,7 @@ export function RaceGame({
   currentRound,
   contentId,
   isHost,
-  opponentName,
-  opponentAvatar,
+  otherPlayers,
 }: RaceGameProps) {
   const router = useRouter();
   const { user } = useUser();
@@ -74,13 +73,15 @@ export function RaceGame({
     return () => decayEngine.pause();
   }, [currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check if opponent has archived
-  const opponentArchived = useMemo(() => {
-    if (!roundActions || !user) return false;
-    return roundActions.some(
-      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id
-    );
+  // Derive which other players have archived from roundActions
+  const archivedPlayerIds = useMemo(() => {
+    if (!roundActions || !user) return [] as string[];
+    return roundActions
+      .filter((a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id)
+      .map((a: { action: string; clerkId: string }) => a.clerkId);
   }, [roundActions, user]);
+
+  const allOthersArchived = archivedPlayerIds.length >= otherPlayers.length;
 
   // Handle decay timeout — auto-submit when time runs out
   useEffect(() => {
@@ -103,37 +104,61 @@ export function RaceGame({
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-end round when both have archived
+  // Auto-end round when all players have archived
   useEffect(() => {
-    if (!hasArchived || !opponentArchived || roundEndedRef.current) return;
+    if (!hasArchived || !allOthersArchived || roundEndedRef.current) return;
     roundEndedRef.current = true;
 
-    // Calculate opponent score from their action data
-    const opponentAction = roundActions?.find(
-      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user?.id
-    );
-    const opponentScore = opponentAction?.data
-      ? parseInt(opponentAction.data, 10) || 0
-      : 0;
+    // Build scoreUpdates from all archive actions
+    const scoreUpdates: { clerkId: string; scoreAdd: number }[] = [];
 
-    const hostAdd = isHost ? roundScore : opponentScore;
-    const guestAdd = isHost ? opponentScore : roundScore;
+    // Add my score
+    if (user) {
+      scoreUpdates.push({ clerkId: user.id, scoreAdd: roundScore });
+    }
 
-    endRound({ roomId, hostScoreAdd: hostAdd, guestScoreAdd: guestAdd });
-  }, [hasArchived, opponentArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Add other players' scores from their action data
+    if (roundActions) {
+      for (const other of otherPlayers) {
+        const action = roundActions.find(
+          (a: { action: string; clerkId: string; data?: string }) => a.action === "archive" && a.clerkId === other.clerkId
+        );
+        const score = action?.data ? parseInt(action.data, 10) || 0 : 0;
+        scoreUpdates.push({ clerkId: other.clerkId, scoreAdd: score });
+      }
+    }
 
-  // Safety net: if we archived but opponent hasn't after 10s, host force-advances
+    endRound({ roomId, scoreUpdates });
+  }, [hasArchived, allOthersArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Safety net: if we archived but not all others have after 10s, host force-advances
   useEffect(() => {
-    if (!hasArchived || opponentArchived || !isHost) return;
+    if (!hasArchived || allOthersArchived || !isHost) return;
     safetyTimerRef.current = setTimeout(() => {
       if (roundEndedRef.current) return;
       roundEndedRef.current = true;
-      endRound({ roomId, hostScoreAdd: roundScore, guestScoreAdd: 0 });
+
+      // Build scoreUpdates with what we have
+      const scoreUpdates: { clerkId: string; scoreAdd: number }[] = [];
+      if (user) {
+        scoreUpdates.push({ clerkId: user.id, scoreAdd: roundScore });
+      }
+      if (roundActions) {
+        for (const other of otherPlayers) {
+          const action = roundActions.find(
+            (a: { action: string; clerkId: string; data?: string }) => a.action === "archive" && a.clerkId === other.clerkId
+          );
+          const score = action?.data ? parseInt(action.data, 10) || 0 : 0;
+          scoreUpdates.push({ clerkId: other.clerkId, scoreAdd: score });
+        }
+      }
+
+      endRound({ roomId, scoreUpdates });
     }, 10000);
     return () => {
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
-  }, [hasArchived, opponentArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasArchived, allOthersArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback(
     (sectionId: string) => {
@@ -171,7 +196,7 @@ export function RaceGame({
     }
 
     // Speed bonus if first to archive
-    if (!opponentArchived) {
+    if (archivedPlayerIds.length === 0) {
       score += 50;
     }
 
@@ -186,7 +211,7 @@ export function RaceGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction]);
+  }, [hasArchived, selectedSections, content.sections, decayProgress, archivedPlayerIds, roomId, submitAction]);
 
   const handleLeaveGame = useCallback(async () => {
     if (leaving) return;
@@ -221,9 +246,8 @@ export function RaceGame({
 
       {/* Opponent status */}
       <OpponentStatus
-        name={opponentName}
-        avatarUrl={opponentAvatar}
-        hasArchived={opponentArchived}
+        otherPlayers={otherPlayers}
+        archivedPlayerIds={archivedPlayerIds}
         mode="race"
       />
 
@@ -255,9 +279,9 @@ export function RaceGame({
               className="text-center font-mono text-sm text-archive"
             >
               Score: +{roundScore}
-              {opponentArchived
+              {allOthersArchived
                 ? " — Waiting for round results..."
-                : " — Waiting for opponent..."}
+                : ` — Waiting for ${otherPlayers.length - archivedPlayerIds.length} player(s)...`}
             </motion.div>
           )}
         </div>

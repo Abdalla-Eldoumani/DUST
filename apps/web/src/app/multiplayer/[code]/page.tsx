@@ -18,6 +18,59 @@ import { CoopGame } from "@/components/game/multiplayer/coop-game";
 import { RoundResults } from "@/components/game/multiplayer/round-results";
 import { MatchResults } from "@/components/game/multiplayer/match-results";
 
+export type PlayerInfo = {
+  clerkId: string;
+  username: string;
+  avatarUrl: string;
+  score: number;
+  present: boolean;
+  isHost: boolean;
+  joinOrder: number;
+};
+
+// Helper: get the canonical players array from a room, falling back to legacy fields
+function getPlayersFromRoom(room: {
+  players?: PlayerInfo[] | null;
+  hostClerkId: string;
+  hostUsername?: string;
+  hostAvatarUrl?: string;
+  hostScore?: number;
+  hostPresent?: boolean;
+  guestClerkId?: string;
+  guestUsername?: string;
+  guestAvatarUrl?: string;
+  guestScore?: number;
+  guestPresent?: boolean;
+}): PlayerInfo[] {
+  if (room.players && room.players.length > 0) return room.players;
+
+  const players: PlayerInfo[] = [
+    {
+      clerkId: room.hostClerkId,
+      username: room.hostUsername ?? "Host",
+      avatarUrl: room.hostAvatarUrl ?? "",
+      score: room.hostScore ?? 0,
+      present: room.hostPresent !== false,
+      isHost: true,
+      joinOrder: 0,
+    },
+  ];
+
+  if (room.guestClerkId) {
+    players.push({
+      clerkId: room.guestClerkId,
+      username: room.guestUsername ?? "Guest",
+      avatarUrl: room.guestAvatarUrl ?? "",
+      score: room.guestScore ?? 0,
+      present: room.guestPresent !== false,
+      isHost: false,
+      joinOrder: 1,
+    });
+  }
+
+  return players;
+}
+
 export default function MultiplayerRoomPage({
   params,
 }: {
@@ -28,7 +81,9 @@ export default function MultiplayerRoomPage({
   const router = useRouter();
   const room = useQuery(api.multiplayer.getRoom, { roomCode: code.toUpperCase() });
   const setPresence = useMutation(api.multiplayer.setPresence);
+  const leaveRoom = useMutation(api.multiplayer.leaveRoom);
   const claimWinByAbandonment = useMutation(api.multiplayer.claimWinByAbandonment);
+  const [leavingLobby, setLeavingLobby] = useState(false);
   const [leaveCountdown, setLeaveCountdown] = useState<number | null>(null);
   const claimTriggeredRef = useRef(false);
 
@@ -52,37 +107,50 @@ export default function MultiplayerRoomPage({
     }
   }, [room?.status, room?.rematchRoomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isHost = useMemo(
-    () => room?.hostClerkId === user?.id,
-    [room?.hostClerkId, user?.id]
+  // Derive players from room
+  const players = useMemo(
+    () => (room ? getPlayersFromRoom(room) : []),
+    [room]
   );
 
-  const opponentName = isHost
-    ? room?.guestUsername ?? "Opponent"
-    : room?.hostUsername ?? "Host";
-  const opponentAvatar = isHost
-    ? room?.guestAvatarUrl ?? ""
-    : room?.hostAvatarUrl ?? "";
+  const me = useMemo(
+    () => players.find((p) => p.clerkId === user?.id),
+    [players, user?.id]
+  );
 
-  const opponentPresent = isHost
-    ? room?.guestPresent !== false
-    : room?.hostPresent !== false;
+  const isHost = me?.isHost ?? false;
+
+  const otherPlayers = useMemo(
+    () => players.filter((p) => p.clerkId !== user?.id),
+    [players, user?.id]
+  );
+
   const inActiveRound = room?.status === "playing" || room?.status === "roundEnd";
-  const showOpponentLeftNotice = Boolean(
-    room &&
-    inActiveRound &&
-    room.guestClerkId &&
-    !opponentPresent
-  );
-  const shouldRunReconnectCountdown = Boolean(
-    room &&
-    room.mode === "race" &&
-    inActiveRound &&
-    room.guestClerkId &&
-    !opponentPresent
+
+  // Check if ANY other player has left (show notice)
+  const anyOtherLeft = useMemo(
+    () => inActiveRound && otherPlayers.length > 0 && otherPlayers.some((p) => !p.present),
+    [inActiveRound, otherPlayers]
   );
 
-  // Track presence for active room lifecycle (not only post-game).
+  // Check if ALL other players have left (trigger countdown)
+  const allOthersLeft = useMemo(
+    () => inActiveRound && otherPlayers.length > 0 && otherPlayers.every((p) => !p.present),
+    [inActiveRound, otherPlayers]
+  );
+
+  const showOpponentLeftNotice = Boolean(room && anyOtherLeft);
+  const shouldRunReconnectCountdown = Boolean(
+    room && room.mode === "race" && allOthersLeft
+  );
+
+  // Build left player names for the notice
+  const leftPlayerNames = useMemo(
+    () => otherPlayers.filter((p) => !p.present).map((p) => p.username).join(", "),
+    [otherPlayers]
+  );
+
+  // Track presence for active room lifecycle
   useEffect(() => {
     if (!room || !user) return;
     const roomId = room._id;
@@ -128,6 +196,19 @@ export default function MultiplayerRoomPage({
       claimTriggeredRef.current = false;
     });
   }, [leaveCountdown, shouldRunReconnectCountdown, room?._id, claimWinByAbandonment]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleBackToLobby = async () => {
+    if (leavingLobby) return;
+    if (room && (room.status === "waiting" || room.status === "ready")) {
+      setLeavingLobby(true);
+      try {
+        await leaveRoom({ roomId: room._id });
+      } catch {
+        // continue navigation even if cleanup fails
+      }
+    }
+    router.push("/multiplayer");
+  };
 
   // Loading
   if (room === undefined) {
@@ -183,13 +264,15 @@ export default function MultiplayerRoomPage({
         {/* Header (only in non-playing states) */}
         {room.status !== "playing" && (
           <div className="mb-4">
-            <Link
-              href="/multiplayer"
-              className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
+            <button
+              type="button"
+              onClick={handleBackToLobby}
+              disabled={leavingLobby}
+              className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans disabled:opacity-60"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Lobby
-            </Link>
+              {leavingLobby ? "Leaving..." : "Back to Lobby"}
+            </button>
           </div>
         )}
 
@@ -198,12 +281,14 @@ export default function MultiplayerRoomPage({
           {showOpponentLeftNotice && room.status !== "finished" && (
             <div className="mb-3 border border-decay/40 bg-decay/10 px-3 py-2">
               <p className="font-mono text-xs uppercase tracking-wider text-decay">
-                {opponentName} left.
+                {leftPlayerNames} left.
               </p>
               <p className="mt-1 font-sans text-xs text-text-secondary">
-                {room.mode === "race"
+                {room.mode === "race" && allOthersLeft
                   ? `Waiting ${leaveCountdown ?? 10}s for reconnect. If they don't return, you win by default.`
-                  : "You can keep playing. They can rejoin at any time."}
+                  : room.mode === "race"
+                    ? "Some players have left. If all others leave, you can claim a default win."
+                    : "You can keep playing. They can rejoin at any time."}
               </p>
             </div>
           )}
@@ -212,9 +297,11 @@ export default function MultiplayerRoomPage({
             <RoomWaiting
               roomCode={room.roomCode}
               roomId={room._id}
-              hostUsername={room.hostUsername}
-              hostAvatarUrl={room.hostAvatarUrl}
+              hostUsername={players.find((p) => p.isHost)?.username ?? "Host"}
+              hostAvatarUrl={players.find((p) => p.isHost)?.avatarUrl ?? ""}
               mode={room.mode}
+              playerCount={players.length}
+              maxPlayers={room.maxPlayers ?? 5}
             />
           )}
 
@@ -224,10 +311,7 @@ export default function MultiplayerRoomPage({
               roomCode={room.roomCode}
               mode={room.mode}
               isHost={isHost}
-              hostUsername={room.hostUsername}
-              hostAvatarUrl={room.hostAvatarUrl}
-              guestUsername={room.guestUsername ?? "Guest"}
-              guestAvatarUrl={room.guestAvatarUrl ?? ""}
+              players={players}
             />
           )}
 
@@ -238,8 +322,7 @@ export default function MultiplayerRoomPage({
                 currentRound={room.currentRound}
                 contentId={room.currentContentId}
                 isHost={isHost}
-                opponentName={opponentName}
-                opponentAvatar={opponentAvatar}
+                otherPlayers={otherPlayers}
               />
             ) : (
               <CoopGame
@@ -247,8 +330,7 @@ export default function MultiplayerRoomPage({
                 currentRound={room.currentRound}
                 contentId={room.currentContentId}
                 isHost={isHost}
-                partnerName={opponentName}
-                partnerAvatar={opponentAvatar}
+                partners={otherPlayers}
                 sharedEnergy={room.sharedEnergy ?? 10}
                 sharedScore={room.sharedScore ?? 0}
               />
@@ -262,10 +344,7 @@ export default function MultiplayerRoomPage({
               maxRounds={room.maxRounds}
               mode={room.mode}
               isHost={isHost}
-              hostUsername={room.hostUsername}
-              guestUsername={room.guestUsername ?? "Guest"}
-              hostScore={room.hostScore}
-              guestScore={room.guestScore}
+              players={players}
               sharedScore={room.sharedScore ?? undefined}
             />
           )}
@@ -275,22 +354,11 @@ export default function MultiplayerRoomPage({
               roomId={room._id}
               mode={room.mode}
               currentRound={room.currentRound}
-              hostUsername={room.hostUsername}
-              guestUsername={room.guestUsername ?? "Guest"}
-              hostAvatarUrl={room.hostAvatarUrl}
-              guestAvatarUrl={room.guestAvatarUrl ?? ""}
-              hostScore={room.hostScore}
-              guestScore={room.guestScore}
-              sharedScore={room.sharedScore ?? undefined}
               maxRounds={room.maxRounds}
               isHost={isHost}
-              hostPresent={room.hostPresent}
-              guestPresent={room.guestPresent}
-              opponentPresent={
-                isHost
-                  ? room.guestPresent ?? false
-                  : room.hostPresent ?? false
-              }
+              players={players}
+              myClerkId={user?.id ?? ""}
+              sharedScore={room.sharedScore ?? undefined}
             />
           )}
         </div>
