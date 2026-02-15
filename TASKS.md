@@ -9,37 +9,37 @@
 ## Phase 0: Environment & Scaffolding (Hour 0–1)
 
 ### 0.1 Project Setup
-- [ ] Install all dependencies: `npm install` from root
-- [ ] Install additional packages in `apps/web`:
+- [x] Install all dependencies: `npm install` from root
+- [x] Install additional packages in `apps/web`:
   - `framer-motion` (decay animations)
   - `zustand` (game state)
   - `@ai-sdk/anthropic` or direct `@anthropic-ai/sdk` (Claude API)
   - `lucide-react` (icons)
   - `next-themes` (dark mode — default to dark)
   - `canvas-confetti` (victory effects)
-- [ ] Add Google Fonts to `apps/web/src/app/layout.tsx`:
+- [x] Add Google Fonts to `apps/web/src/app/layout.tsx`:
   - `Space Mono` (display/monospace)
   - `Newsreader` (body/serif for fake web content)
   - `DM Sans` (UI elements)
-- [ ] Set up environment variables in `.env.local`:
+- [x] Set up environment variables in `.env.local`:
   - `NEXT_PUBLIC_CONVEX_URL`
   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
   - `CLERK_SECRET_KEY`
   - `ANTHROPIC_API_KEY`
-- [ ] Verify Convex dev server runs: `npx convex dev` from `packages/backend`
-- [ ] Verify Next.js dev server runs: `npm run dev` from `apps/web`
-- [ ] Initial git commit: "Phase 0: Project scaffolding complete"
+- [x] Verify Convex dev server runs: `npx convex dev` from `packages/backend`
+- [x] Verify Next.js dev server runs: `npm run dev` from `apps/web`
+- [x] Initial git commit: "Phase 0: Project scaffolding complete"
 
 ### 0.2 Design System Foundation
-- [ ] Create `apps/web/src/lib/fonts.ts` — export font configurations
-- [ ] Update `apps/web/src/index.css` with full CSS custom properties (see root CLAUDE.md color palette)
-- [ ] Create `apps/web/src/lib/cn.ts` — Tailwind merge utility (if not already in utils.ts)
-- [ ] Create `apps/web/src/components/ui/scanline-overlay.tsx` — CRT scanline effect component
-- [ ] Create `apps/web/src/components/ui/noise-texture.tsx` — background noise/grain overlay
-- [ ] Create `apps/web/src/components/ui/glow-text.tsx` — text with phosphor glow effect
-- [ ] Create `apps/web/src/components/ui/terminal-panel.tsx` — terminal-window styled container
-- [ ] Verify dark theme is default and looks correct
-- [ ] Git commit: "Phase 0: Design system foundation"
+- [x] Create `apps/web/src/lib/fonts.ts` — export font configurations
+- [x] Update `apps/web/src/index.css` with full CSS custom properties (see root CLAUDE.md color palette)
+- [x] Create `apps/web/src/lib/cn.ts` — Tailwind merge utility (if not already in utils.ts)
+- [x] Create `apps/web/src/components/ui/scanline-overlay.tsx` — CRT scanline effect component
+- [x] Create `apps/web/src/components/ui/noise-texture.tsx` — background noise/grain overlay
+- [x] Create `apps/web/src/components/ui/glow-text.tsx` — text with phosphor glow effect
+- [x] Create `apps/web/src/components/ui/terminal-panel.tsx` — terminal-window styled container
+- [x] Verify dark theme is default and looks correct
+- [x] Git commit: "Phase 0: Design system foundation"
 
 ---
 

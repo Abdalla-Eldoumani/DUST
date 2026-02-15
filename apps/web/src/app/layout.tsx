@@ -1,26 +1,16 @@
 import type { Metadata } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 
 import "../index.css";
-import { Geist, Geist_Mono } from "next/font/google";
-
-import Header from "@/components/header";
+import { spaceMono, newsreader, dmSans } from "@/lib/fonts";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "DUST",
-  description: "DUST",
+  title: "DUST — Digital Archaeologist",
+  description:
+    "The internet is dying. You're the last archivist. Save what matters before it decays forever.",
 };
 
 export default function RootLayout({
@@ -29,14 +19,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ClerkProvider>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        className={`${spaceMono.variable} ${newsreader.variable} ${dmSans.variable} antialiased`}
+      >
+        <ClerkProvider appearance={{ baseTheme: dark }}>
           <Providers>
-            <div className="grid grid-rows-[auto_1fr] h-svh">
-              <Header />
-              {children}
-            </div>
+            {children}
           </Providers>
         </ClerkProvider>
       </body>
