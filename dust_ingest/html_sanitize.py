@@ -84,7 +84,7 @@ _PARAGRAPH_TAGS: set[str] = {
     "blockquote", "pre", "figcaption",
 }
 
-DEFAULT_MAX_WORDS = 1000
+DEFAULT_MAX_WORDS = 300
 
 
 def truncate_to_word_limit(html: str, *, max_words: int = DEFAULT_MAX_WORDS) -> str:
@@ -102,7 +102,7 @@ def truncate_to_word_limit(html: str, *, max_words: int = DEFAULT_MAX_WORDS) -> 
     html:
         Sanitized HTML string.
     max_words:
-        Approximate word budget (default 1000).
+        Approximate word budget (default 300).
 
     Returns
     -------

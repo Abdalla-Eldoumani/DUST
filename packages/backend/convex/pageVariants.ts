@@ -63,3 +63,26 @@ export const getByLevelId = query({
   },
 });
 
+/**
+ * Count valid (non-empty, has fakeMarks) variants per level for a project.
+ *
+ * Returns a record mapping levelId → number of playable variants.
+ */
+export const countValidByProject = query({
+  args: { projectId: v.string() },
+  handler: async (ctx, args) => {
+    const variants = await ctx.db
+      .query("pageVariants")
+      .withIndex("by_projectId", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
+    const counts: Record<string, number> = {};
+    for (const v of variants) {
+      if (!v.alteredContent || !v.alteredContent.trim()) continue;
+      if (!v.fakeMarks || v.fakeMarks.length === 0) continue;
+      counts[v.levelId] = (counts[v.levelId] || 0) + 1;
+    }
+    return counts;
+  },
+});
+

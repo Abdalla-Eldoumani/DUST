@@ -13,18 +13,20 @@ import logging
 import re
 import uuid
 
+import httpx
 from bs4 import BeautifulSoup, Tag
 from openai import OpenAI
 
 from dust_ingest.models import (
     AlteredPage,
     FakeMark,
-    Level,
     MutationParams,
+    PageElement,
     PageSnapshot,
     PageVariant,
     PipelineConfig,
 )
+from dust_ingest.variant_validation import validate_page_variant
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,42 @@ _TEXT_HTML_TAGS = (
     "h1", "h2", "h3", "h4", "h5", "h6",
     "p", "li", "blockquote", "figcaption", "pre", "code", "td", "th",
 )
+
+# Patterns in page title or content that indicate a failed/error page.
+_BAD_PAGE_TITLE_PATTERNS = [
+    "page not found", "404", "access denied", "403 forbidden",
+    "500 internal", "503 service", "error page", "not available",
+    "under construction", "coming soon", "moved permanently",
+    "web page blocked",
+]
+
+_MIN_TEXT_LENGTH = 100  # minimum total text chars for a page to be valid
+
+
+def is_valid_page(page: "PageSnapshot") -> bool:
+    """Return *True* if the page has enough content for meaningful alteration.
+
+    Filters out 404s, error pages, and pages with nearly no text.
+    """
+    title = (page.title or "").lower()
+    if any(pat in title for pat in _BAD_PAGE_TITLE_PATTERNS):
+        logger.info(
+            "Skipping page %s â€” bad title: %r", page.pageId, page.title,
+        )
+        return False
+
+    total_text = " ".join(
+        el.text or "" for el in page.elements if el.tag != "img"
+    )
+    if len(total_text.strip()) < _MIN_TEXT_LENGTH:
+        logger.info(
+            "Skipping page %s â€” too little text (%d chars)",
+            page.pageId,
+            len(total_text.strip()),
+        )
+        return False
+
+    return True
 
 
 def _truncate_to_sentence_boundary(text: str, max_chars: int) -> str:
@@ -106,8 +144,11 @@ RULES:
 9. At difficulty 7-10: fakes are subtle framing, cherry-picked context,
    plausible-but-wrong attribution.
 10. ALWAYS include at least one fake span and one fakeMarks entry.
+11. Do NOT split a sentence across multiple text elements when avoidable.
+    Each text element should contain at least one complete sentence.
+12. Do NOT output "li" elements. Convert list-style text into "p" elements.
 
-OUTPUT FORMAT — strict JSON, no markdown fences:
+OUTPUT FORMAT â€” strict JSON, no markdown fences:
 {{
   "alteredContent": [
     {{"elementId": "...", "type": "...", "text": "...with <FAKE: altered phrase> embedded..."}},
@@ -168,8 +209,87 @@ def _elements_to_html(elements: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _parse_response(raw: str) -> AlteredPage:
-    """Parse the LLM response into an AlteredPage, stripping markdown fences."""
+def _strip_h2_sections(html_content: str) -> str:
+    """Remove all <h2> tags and their contents from HTML content."""
+    if not html_content.strip():
+        return html_content
+    soup = BeautifulSoup(html_content, "html.parser")
+    for tag in soup.find_all("h2"):
+        tag.decompose()
+    return str(soup)
+
+
+def _ends_with_sentence(text: str) -> bool:
+    """Return True if *text* appears to end at a sentence boundary."""
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return False
+    last_end = None
+    for match in _SENTENCE_END_RE.finditer(normalized):
+        last_end = match.end()
+    return last_end == len(normalized)
+
+
+def _normalize_text_sections(html_content: str) -> str:
+    """Normalize sections: remove h2, remove li tags, merge fragments."""
+    if not html_content.strip():
+        return html_content
+
+    soup = BeautifulSoup(html_content, "html.parser")
+
+    # Remove all h2 sections entirely.
+    for tag in soup.find_all("h2"):
+        tag.decompose()
+
+    # Remove li tags by converting them to paragraph tags.
+    for tag in soup.find_all("li"):
+        tag.name = "p"
+
+    # Merge sentence fragments so we avoid sections smaller than a sentence.
+    mergeable_tags = ("p", "blockquote", "figcaption", "pre", "code", "td", "th")
+    previous: Tag | None = None
+    for tag in list(soup.find_all(mergeable_tags)):
+        if not isinstance(tag, Tag):
+            continue
+        text = tag.get_text(separator=" ", strip=True)
+        if not text:
+            tag.decompose()
+            continue
+
+        if previous is None:
+            previous = tag
+            continue
+
+        prev_text = previous.get_text(separator=" ", strip=True)
+        if not prev_text:
+            previous = tag
+            continue
+
+        prev_complete = _ends_with_sentence(prev_text)
+        current_complete = _ends_with_sentence(text)
+        current_short_fragment = (not current_complete) and len(text.split()) <= 14
+        if (not prev_complete) or current_short_fragment:
+            merged = f"{prev_text} {text}".replace("\n", " ")
+            merged = " ".join(merged.split()).strip()
+            previous.clear()
+            previous.append(merged)
+            tag.decompose()
+            continue
+
+        previous = tag
+
+    return str(soup)
+
+
+def _parse_response(
+    raw: str,
+    original_elements: list[PageElement] | None = None,
+) -> AlteredPage:
+    """Parse the LLM response into an AlteredPage, stripping markdown fences.
+
+    If *original_elements* is provided, image ``src`` / ``srcset`` values
+    are restored from the originals â€” LLMs frequently mangle or drop URLs.
+    """
     text = raw.strip()
     # Strip markdown code fences if present
     if text.startswith("```"):
@@ -184,6 +304,8 @@ def _parse_response(raw: str) -> AlteredPage:
     data = json.loads(text)
     marks = []
     for m in data.get("fakeMarks", []):
+        if not isinstance(m, dict):
+            continue  # skip malformed entries (e.g. bare strings)
         marks.append(
             FakeMark(
                 kind=m.get("kind", "FAKE"),
@@ -197,9 +319,33 @@ def _parse_response(raw: str) -> AlteredPage:
     # The model may return alteredContent as a list of element objects.
     # Convert this list into HTML so stored content is webpage-like and readable.
     if isinstance(altered, list):
+        # Restore original image URLs â€” LLMs often replace src with "..."
+        # or hallucinate broken URLs.  Images aren't misinformation targets
+        # so the original values are always correct.
+        if original_elements:
+            orig_img_map = {
+                el.elementId: el
+                for el in original_elements
+                if el.tag == "img" and el.src
+            }
+            for el in altered:
+                if not isinstance(el, dict):
+                    continue
+                if el.get("type") != "img":
+                    continue
+                orig = orig_img_map.get(el.get("elementId", ""))
+                if orig:
+                    el["src"] = orig.src
+                    if orig.srcset:
+                        el["srcset"] = orig.srcset
+                    # Keep LLM alt text only if it's non-empty (may be
+                    # a legitimate alteration); otherwise restore original.
+                    if not el.get("alt") and orig.alt:
+                        el["alt"] = orig.alt
         altered = _elements_to_html(altered)
     elif not isinstance(altered, str):
         altered = json.dumps(altered, ensure_ascii=False)
+    altered = _normalize_text_sections(altered)
 
     return AlteredPage(
         alteredContent=altered,
@@ -282,9 +428,10 @@ def alter_page(
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_content},
                 ],
+                response_format={"type": "json_object"},
             )
             text = response.choices[0].message.content
-            parsed = _parse_response(text)
+            parsed = _parse_response(text, original_elements=page.elements)
             if parsed.fakeMarks:
                 return parsed
 
@@ -295,7 +442,7 @@ def alter_page(
                 attempt,
                 config.retries + 1,
             )
-        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as exc:
             last_err = exc
             logger.warning(
                 "LLM JSON parse failed (attempt %d/%d): %s",
@@ -321,116 +468,216 @@ def alter_page(
     return AlteredPage(alteredContent="", fakeMarks=[])
 
 
-_DEFAULT_WORKERS = 200
+_DEFAULT_WORKERS = 40
 _EXTRA_DIFFICULTY = 5  # default difficulty for pages not in any level
+_UNASSIGNED_LEVEL_SUFFIX = "unassigned"
+
+
+def _level_capacity(difficulty: int) -> int:
+    """Number of pages for a given difficulty level."""
+    return (difficulty + 1) // 2
+
+
+def _unassigned_difficulty(num_levels: int) -> int:
+    """Difficulty used for variants not placed into a level."""
+    return max(1, min(_EXTRA_DIFFICULTY, num_levels))
 
 
 def _generate_one_variant(
     page: PageSnapshot,
     params: MutationParams,
     difficulty: int,
-    level_id: str,
     project_id: str,
     config: PipelineConfig,
     client: OpenAI,
 ) -> PageVariant | None:
-    """Generate a single variant (called from thread pool)."""
+    """Generate a single valid variant (called from thread pool)."""
     try:
         altered = alter_page(page, params, difficulty, config, client=client)
-        return PageVariant(
+        candidate = PageVariant(
             variantId=uuid.uuid4().hex[:16],
             pageId=page.pageId,
-            levelId=level_id,
+            # Assigned after all successful variants are known.
+            levelId="",
             difficulty=difficulty,
             alteredContent=altered.alteredContent,
             fakeMarks=altered.fakeMarks,
             projectId=project_id,
         )
+
+        is_valid, reason = validate_page_variant(candidate)
+        if not is_valid:
+            logger.warning(
+                "Skipping page %s difficulty %d â€” %s",
+                page.pageId,
+                difficulty,
+                reason,
+            )
+            return None
+        return candidate
     except Exception:
-        logger.exception("Failed to generate variant for page %s difficulty %d",
-                         page.pageId, difficulty)
+        logger.exception(
+            "Failed to generate variant for page %s difficulty %d",
+            page.pageId,
+            difficulty,
+        )
         return None
+
+
+def _mutation_params(difficulty: int, num_levels: int) -> MutationParams:
+    """Return mutation parameters scaled to *difficulty* (1â€“num_levels)."""
+    t = (difficulty - 1) / max(num_levels - 1, 1)  # 0.0 â†’ 1.0
+    return MutationParams(
+        fakeRate=round(0.05 + t * 0.45, 3),       # 0.05 â†’ 0.50
+        subtlety=round(0.1 + t * 0.85, 3),        # 0.10 â†’ 0.95
+        maxFakeSpans=max(1, int(1 + t * 7)),       # 1 â†’ 8
+    )
 
 
 def generate_variants(
     pages: list[PageSnapshot],
-    levels: list[Level],
     config: PipelineConfig,
+    project_id: str,
     *,
+    num_levels: int = 10,
     max_workers: int = _DEFAULT_WORKERS,
-    extra_difficulty: int = _EXTRA_DIFFICULTY,
-) -> list[PageVariant]:
-    """Generate altered variants for **every** page.
+) -> tuple[list[PageVariant], list[PageVariant]]:
+    """Generate valid variants, then assign them to levels.
 
-    Leveled pages use their level's difficulty and mutation params.
-    Pages not in any level use *extra_difficulty* with corresponding
-    default mutation params.
-
-    Runs up to *max_workers* LLM calls in parallel using threads.
-    Returns a flat list of :class:`PageVariant` objects.
+    Returns ``(all_valid_variants, level_assigned_variants)``.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    page_map = {p.pageId: p for p in pages}
-
-    # Build work items: (page, params, difficulty, levelId, projectId)
-    Work = tuple[PageSnapshot, MutationParams, int, str, str]
-    work: list[Work] = []
-
-    # 1. Leveled pages
-    leveled_page_ids: set[str] = set()
-    for level in levels:
-        for pid in level.pageIds:
-            page = page_map.get(pid)
-            if not page:
-                logger.warning("Page %s not found — skipping variant", pid)
-                continue
-            work.append((page, level.mutationParams, level.difficulty,
-                         level.levelId, level.projectId))
-            leveled_page_ids.add(pid)
-
-    # 2. Extra (non-leveled) pages — use default difficulty
-    num_levels = max((lv.difficulty for lv in levels), default=10)
-    extra_params = MutationParams(
-        fakeRate=round(0.05 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 0.45, 3),
-        subtlety=round(0.1 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 0.85, 3),
-        maxFakeSpans=max(1, int(1 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 7)),
-    )
-    project_id = levels[0].projectId if levels else "default"
+    # Filter to valid pages first
+    valid_pages: list[PageSnapshot] = []
+    skipped = 0
     for page in pages:
-        if page.pageId not in leveled_page_ids:
-            work.append((page, extra_params, extra_difficulty,
-                         "extra", project_id))
+        if not is_valid_page(page):
+            skipped += 1
+            continue
+        valid_pages.append(page)
+
+    if skipped:
+        logger.info("Skipped %d invalid pages (404s, error pages, etc.)", skipped)
+
+    if not valid_pages:
+        logger.warning("No valid pages to generate variants from")
+        return [], []
+
+    # Provisional difficulty controls mutation strength while converting.
+    Work = tuple[int, PageSnapshot, MutationParams, int, str]
+    work: list[Work] = []
+    level_counts: dict[int, int] = {}
+    extra_difficulty = _unassigned_difficulty(num_levels)
+    for idx, page in enumerate(valid_pages):
+        assigned = False
+        for difficulty in range(1, num_levels + 1):
+            cap = _level_capacity(difficulty)
+            current = level_counts.get(difficulty, 0)
+            if current < cap:
+                work.append(
+                    (
+                        idx,
+                        page,
+                        _mutation_params(difficulty, num_levels),
+                        difficulty,
+                        project_id,
+                    )
+                )
+                level_counts[difficulty] = current + 1
+                assigned = True
+                break
+        if not assigned:
+            work.append(
+                (
+                    idx,
+                    page,
+                    _mutation_params(extra_difficulty, num_levels),
+                    extra_difficulty,
+                    project_id,
+                )
+            )
 
     logger.info(
-        "Generating %d variants (%d leveled + %d extra) with %d threads",
-        len(work), len(leveled_page_ids),
-        len(work) - len(leveled_page_ids), max_workers,
+        "Generating up to %d variants across %d levels with %d threads",
+        len(work),
+        num_levels,
+        max_workers,
     )
 
-    # Single shared client — enables httpx connection pooling across all workers
-    client = OpenAI(api_key=config.llm_api_key, base_url=config.llm_base_url)
+    # Single shared client with explicit connection pool limits to avoid
+    # socket contention on Windows (WinError 10038).  Keep a few extra
+    # connections beyond max_workers for httpx's keep-alive headroom.
+    pool_size = max_workers + 5
+    http_client = httpx.Client(
+        limits=httpx.Limits(
+            max_connections=pool_size,
+            max_keepalive_connections=max_workers,
+        ),
+        timeout=httpx.Timeout(90.0, connect=30.0),
+    )
+    client = OpenAI(
+        api_key=config.llm_api_key,
+        base_url=config.llm_base_url,
+        http_client=http_client,
+    )
 
-    variants: list[PageVariant] = []
+    completed: list[tuple[int, PageVariant]] = []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
             pool.submit(
                 _generate_one_variant,
-                page, params, diff, lid, proj, config, client,
-            ): (page.pageId, diff)
-            for page, params, diff, lid, proj in work
+                page,
+                params,
+                diff,
+                proj,
+                config,
+                client,
+            ): (idx, page.pageId, diff)
+            for idx, page, params, diff, proj in work
         }
         for future in as_completed(futures):
-            pid, diff = futures[future]
+            idx, pid, diff = futures[future]
             variant = future.result()
             if variant is not None:
-                variants.append(variant)
+                completed.append((idx, variant))
                 logger.info(
                     "Variant done: page=%s difficulty=%d (%d/%d)",
-                    pid, diff, len(variants), len(work),
+                    pid,
+                    diff,
+                    len(completed),
+                    len(work),
                 )
 
-    # Sort by difficulty for consistent ordering
-    variants.sort(key=lambda v: (v.difficulty, v.pageId))
-    logger.info("Generated %d total variants", len(variants))
-    return variants
+    # Preserve original page order before final level assignment.
+    completed.sort(key=lambda pair: pair[0])
+    all_variants = [variant for _, variant in completed]
+
+    level_assigned: list[PageVariant] = []
+    leftovers = 0
+    level_counts = {}
+    unassigned_level_id = f"{project_id}_{_UNASSIGNED_LEVEL_SUFFIX}"
+    for variant in all_variants:
+        assigned = False
+        for difficulty in range(1, num_levels + 1):
+            cap = _level_capacity(difficulty)
+            current = level_counts.get(difficulty, 0)
+            if current < cap:
+                variant.difficulty = difficulty
+                variant.levelId = f"{project_id}_level_{difficulty:02d}"
+                level_counts[difficulty] = current + 1
+                level_assigned.append(variant)
+                assigned = True
+                break
+        if not assigned:
+            leftovers += 1
+            variant.difficulty = extra_difficulty
+            variant.levelId = unassigned_level_id
+
+    logger.info(
+        "Generated %d valid variants (%d assigned to levels, %d leftovers)",
+        len(all_variants),
+        len(level_assigned),
+        leftovers,
+    )
+    return all_variants, level_assigned

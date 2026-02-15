@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useTextDecay } from "@/lib/decay/text-decay";
 import { useLayoutDecay } from "@/lib/decay/layout-decay";
 import { useColorDecay } from "@/lib/decay/color-decay";
+import { useImageDecay } from "@/lib/decay/image-decay";
 import { cn } from "@/lib/utils";
 import type { PageContent, PageSection } from "@/lib/types";
 
@@ -102,7 +103,7 @@ const DecayingSection = memo(function DecayingSection({
   isTitle,
 }: DecayingSectionProps) {
   const layoutDecay = useLayoutDecay(decayProgress, elementIndex);
-  const isClickable = onSelect && section.id !== "__title";
+  const isClickable = onSelect && section.id !== "__title" && !section.imageSrc;
 
   return (
     <motion.div
@@ -123,22 +124,30 @@ const DecayingSection = memo(function DecayingSection({
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-archive shadow-[0_0_8px_rgba(0,255,136,0.5)]" />
       )}
 
-      <DecayingText
-        text={section.text}
-        progress={decayProgress}
-        decayOrder={section.decayOrder}
-        className={cn(
-          isTitle
-            ? "text-2xl font-bold font-mono leading-tight"
-            : section.category === "quote"
-              ? "italic border-l-2 border-text-ghost/30 pl-4 text-text-secondary"
-              : section.category === "statistic"
-                ? "font-mono text-sm bg-surface/50 p-2 rounded"
-                : "leading-relaxed"
-        )}
-      />
+      {section.imageSrc ? (
+        <DecayingImage
+          src={section.imageSrc}
+          alt={section.imageAlt ?? ""}
+          progress={decayProgress}
+        />
+      ) : (
+        <DecayingText
+          text={section.text}
+          progress={decayProgress}
+          decayOrder={section.decayOrder}
+          className={cn(
+            isTitle
+              ? "text-2xl font-bold font-mono leading-tight"
+              : section.category === "quote"
+                ? "italic border-l-2 border-text-ghost/30 pl-4 text-text-secondary"
+                : section.category === "statistic"
+                  ? "font-mono text-sm bg-surface/50 p-2 rounded"
+                  : "leading-relaxed"
+          )}
+        />
+      )}
 
-      {section.category === "attribution" && (
+      {!section.imageSrc && section.category === "attribution" && (
         <span className="text-xs text-text-ghost font-sans ml-2">
           — source
         </span>
@@ -162,4 +171,39 @@ const DecayingText = memo(function DecayingText({
 }: DecayingTextProps) {
   const decayedText = useTextDecay(text, progress, decayOrder);
   return <span className={className}>{decayedText}</span>;
+});
+
+
+/* ─── Decaying Image ─── */
+
+interface DecayingImageProps {
+  src: string;
+  alt: string;
+  progress: number;
+}
+
+const DecayingImage = memo(function DecayingImage({
+  src,
+  alt,
+  progress,
+}: DecayingImageProps) {
+  const imageDecay = useImageDecay(progress);
+
+  return (
+    <div className="my-2 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-80 w-auto h-auto object-contain rounded"
+        style={{
+          filter: imageDecay.filter,
+          opacity: imageDecay.opacity,
+          imageRendering: imageDecay.imageRendering as React.CSSProperties["imageRendering"],
+          transform: imageDecay.transform,
+        }}
+        loading="lazy"
+      />
+    </div>
+  );
 });

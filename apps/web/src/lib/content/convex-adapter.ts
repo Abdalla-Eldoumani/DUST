@@ -183,7 +183,7 @@ function parseHtmlAlteredElements(rawHtml: string): AlteredElement[] {
         text: (node.textContent ?? "").trim(),
       };
     })
-    .filter((el) => !!(el.text && el.text.trim().length > 0));
+    .filter((el) => !!(el.text && el.text.trim().length > 0) || !!el.src);
 }
 
 function parseAlteredElements(raw: string): AlteredElement[] {
@@ -212,7 +212,7 @@ function parseAlteredElements(raw: string): AlteredElement[] {
             alt: typeof el?.alt === "string" ? el.alt : undefined,
           } satisfies AlteredElement;
         })
-        .filter((el) => el.text && el.text.trim().length > 0);
+        .filter((el) => (el.text && el.text.trim().length > 0) || !!el.src);
     }
   } catch {
     // Fall through to HTML parser.
@@ -245,10 +245,13 @@ export function variantToPageContent(
   const parsedSections: PageSection[] = rawElements.flatMap((el, idx) => {
     const rawText = el.text ?? "";
     const cleanText = toCompleteSentences(stripTags(rawText));
-    if (!cleanText) return [];
-    if (el.type !== "h1" && el.type !== "h2" && isLikelyNoise(cleanText)) return [];
+    const isImage = el.type === "img" && !!el.src;
 
-    const category = tagToCategory(el.type);
+    // Allow image-only elements through even without text
+    if (!cleanText && !isImage) return [];
+    if (!isImage && el.type !== "h1" && el.type !== "h2" && isLikelyNoise(cleanText)) return [];
+
+    const category = isImage ? "body" as const : tagToCategory(el.type);
 
     // Determine if this element contains fake/misleading content
     const hasFakeById = fakeElementIds.has(el.elementId);
@@ -260,23 +263,29 @@ export function variantToPageContent(
     return [{
       id: el.elementId,
       text: cleanText,
-      isTrue: !isFake,
+      isTrue: isImage ? true : !isFake, // images are not misinformation targets
       category,
       decayOrder: category === "headline" ? 5 : category === "metadata" ? 1 : 3 - Math.min(idx, 2),
-      archiveCost: 1,
+      archiveCost: isImage ? 0 : 1, // images don't cost energy
+      ...(isImage ? { imageSrc: el.src, imageAlt: el.alt ?? "" } : {}),
     }];
   });
 
   // Merge adjacent short sections so output feels like full paragraphs.
+  // Never merge image sections — they must stay standalone.
   const sections: PageSection[] = [];
   for (const section of parsedSections) {
     const prev = sections[sections.length - 1];
+    const isImageSection = !!section.imageSrc;
+    const prevIsImage = !!prev?.imageSrc;
     const mergeableCategory =
       section.category === "body" ||
       section.category === "quote" ||
       section.category === "attribution";
     const canMerge =
       !!prev &&
+      !isImageSection &&
+      !prevIsImage &&
       mergeableCategory &&
       prev.category === section.category &&
       prev.text.length < 280 &&
@@ -291,6 +300,27 @@ export function variantToPageContent(
 
     sections.push(section);
   }
+
+  // Limit images: at most 1 before the first text section and 1 after the last.
+  // Drop any other image sections so the page doesn't become an image gallery.
+  const firstTextIdx = sections.findIndex((s) => !s.imageSrc);
+  const lastTextIdx = sections.findLastIndex((s) => !s.imageSrc);
+  let leadingImageKept = false;
+  let trailingImageKept = false;
+  const imageLimited = sections.filter((s, i) => {
+    if (!s.imageSrc) return true; // always keep text sections
+    if (i < firstTextIdx && !leadingImageKept) {
+      leadingImageKept = true;
+      return true;
+    }
+    if (i > lastTextIdx && !trailingImageKept) {
+      trailingImageKept = true;
+      return true;
+    }
+    return false; // drop all other images
+  });
+  sections.length = 0;
+  sections.push(...imageLimited);
 
   // Use the original page title/url if available, else synthesize from elements
   const title =

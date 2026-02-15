@@ -63,9 +63,9 @@ def _load_config() -> PipelineConfig:
         apify_timeout_secs=int(_require_env("APIFY_TIMEOUT_SECS", "120")),
         llm_api_key=_require_env("LLM_API_KEY"),
         llm_base_url=_require_env("LLM_BASE_URL", "https://api.deepinfra.com/v1/openai"),
-        llm_model=_require_env("LLM_MODEL", "moonshotai/Kimi-K2.5"),
+        llm_model=_require_env("LLM_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
         convex_url=_require_env("CONVEX_URL"),
-        concurrency=int(_require_env("CONCURRENCY", "3")),
+        concurrency=int(_require_env("CONCURRENCY", "40")),
         retries=int(_require_env("RETRIES", "2")),
     )
 
@@ -102,7 +102,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
     """Execute the full build pipeline."""
     from dust_ingest.apify_scrape import scrape_urls
     from dust_ingest.convex_upload import upload_levels, upload_pages, upload_variants
-    from dust_ingest.leveling import build_levels
+    from dust_ingest.leveling import rebuild_levels_from_variants
     from dust_ingest.llm_alter import generate_variants
 
     # 1. Load config
@@ -134,18 +134,28 @@ def _cmd_build(args: argparse.Namespace) -> None:
         _save_page_cache(p)
     logger.info("Cached %d page snapshots to %s", len(pages), CACHE_DIR / "pages")
 
-    # 5. Build levels (explicit 1-page-per-level assignments)
-    logger.info("=== Phase 2: Building levels ===")
+    # 5. Generate variants via LLM
     num_levels = args.levels
-    levels = build_levels(pages, urls, project_id=project_id, num_levels=num_levels)
+    logger.info("=== Phase 2: Generating altered variants (LLM) ===")
+    variants, level_variants = generate_variants(
+        pages, config, project_id,
+        num_levels=num_levels, max_workers=config.concurrency,
+    )
+    logger.info(
+        "Generated %d valid variants for %d pages (%d level-assigned, %d unassigned)",
+        len(variants),
+        len(pages),
+        len(level_variants),
+        len(variants) - len(level_variants),
+    )
+
+    # 6. Build levels from successful variants
+    logger.info("=== Phase 3: Building levels from successful variants ===")
+    levels = rebuild_levels_from_variants(level_variants, project_id, num_levels)
     for lv in levels:
         _save_level_cache(lv)
-    logger.info("Built and cached %d levels", len(levels))
-
-    # 6. Generate variants via LLM (up to 200 concurrent requests)
-    logger.info("=== Phase 3: Generating altered variants (LLM) ===")
-    variants = generate_variants(pages, levels, config)
-    logger.info("Generated %d variants for %d pages", len(variants), len(pages))
+    logger.info("Built %d levels from %d level-assigned variants",
+                len(levels), len(level_variants))
 
     # 7. Cache variants locally
     variants_dir = CACHE_DIR / "variants"

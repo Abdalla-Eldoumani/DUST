@@ -15,16 +15,18 @@ function seededRandom(seed: number): number {
  * Compute the decay threshold for a character based on its position
  * and the section's decay order. Characters in sections with lower
  * decayOrder start decaying earlier.
+ *
+ * NOTE: The threshold is independent of text length so that longer
+ * passages decay at the same visual rate as shorter ones.
  */
 function charDecayThreshold(
   charIndex: number,
-  textLength: number,
   decayOrder: number = 3
 ): number {
   // decayOrder 1 = decays first (threshold ~0.1), 5 = decays last (threshold ~0.7)
   const orderOffset = 0.1 + (decayOrder - 1) * 0.15;
   // Spread within the section: some chars go earlier, some later
-  const charSpread = seededRandom(charIndex * 7 + textLength) * 0.3;
+  const charSpread = seededRandom(charIndex * 7) * 0.3;
   return Math.min(orderOffset + charSpread, 0.95);
 }
 
@@ -61,7 +63,7 @@ export function decayText(
       // Preserve whitespace
       if (char === " " || char === "\n" || char === "\t") return char;
 
-      const threshold = charDecayThreshold(i, text.length, decayOrder);
+      const threshold = charDecayThreshold(i, decayOrder);
 
       if (progress < threshold) return char;
 

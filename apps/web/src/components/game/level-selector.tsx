@@ -15,6 +15,7 @@ interface LevelSelectorProps {
   onSelectLevel: (levelId: string, difficulty: number) => void;
   onQuickPlay: () => void;
   onDemoMode: () => void;
+  levelError?: string | null;
 }
 
 function getDifficultyColor(difficulty: number) {
@@ -50,11 +51,16 @@ export function LevelSelector({
   onSelectLevel,
   onQuickPlay,
   onDemoMode,
+  levelError,
 }: LevelSelectorProps) {
   const levels = useQuery(api.levels.getByProject, { projectId: PROJECT_ID });
-  const isLoading = levels === undefined;
-  const sortedLevels = levels
-    ? [...levels].sort((a, b) => a.difficulty - b.difficulty)
+  const variantCounts = useQuery(api.pageVariants.countValidByProject, { projectId: PROJECT_ID });
+  const isLoading = levels === undefined || variantCounts === undefined;
+  // Only show levels that have at least one valid variant in pageVariants
+  const sortedLevels = levels && variantCounts
+    ? [...levels]
+        .filter((l) => (variantCounts[l.levelId] ?? 0) > 0)
+        .sort((a, b) => a.difficulty - b.difficulty)
     : [];
 
   return (
@@ -77,6 +83,18 @@ export function LevelSelector({
             subtler misinformation.
           </p>
         </div>
+
+        {/* Level error banner */}
+        {levelError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 flex items-center gap-2 border border-decay/30 bg-decay/10 px-4 py-3 font-mono text-xs text-decay"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {levelError}
+          </motion.div>
+        )}
 
         {/* Loading state */}
         {isLoading && (
@@ -110,7 +128,7 @@ export function LevelSelector({
               const colors = getDifficultyColor(level.difficulty);
               const diffConfig = getDifficulty(level.difficulty);
               const label = getDifficultyLabel(level.difficulty);
-              const pageCount = level.pageIds.length;
+              const pageCount = variantCounts?.[level.levelId] ?? 0;
 
               return (
                 <motion.button

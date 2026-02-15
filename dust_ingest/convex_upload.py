@@ -1,6 +1,6 @@
 """Upload pipeline data to a Convex deployment via the HTTP API.
 
-Uses only ``urllib.request`` from the standard library — no extra
+Uses only ``urllib.request`` from the standard library â€” no extra
 dependencies required.  Targets the public mutation endpoints that
 already exist in the Convex backend (``pages:upsert``,
 ``levels:upsert``, ``pageVariants:insert``).
@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 
 from dust_ingest.models import Level, PageSnapshot, PageVariant, PipelineConfig
+from dust_ingest.variant_validation import validate_page_variant
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,24 @@ def upload_levels(levels: list[Level], config: PipelineConfig) -> int:
 def upload_variants(
     variants: list[PageVariant], config: PipelineConfig
 ) -> int:
-    """Upload page variants via ``pageVariants:insert``.  Returns success count."""
+    """Upload page variants via ``pageVariants:insert``.  Returns success count.
+
+    Invalid variants are skipped (empty content, no fake marks, or too few
+    text elements), preventing degenerate archived pages in gameplay.
+    """
     ok = 0
+    skipped = 0
     for v in variants:
+        is_valid, reason = validate_page_variant(v)
+        if not is_valid:
+            skipped += 1
+            logger.warning(
+                "Skipping variant %s â€” %s",
+                v.variantId,
+                reason,
+            )
+            continue
+
         result = _call_mutation(
             config.convex_url, "pageVariants:insert", v.model_dump()
         )
@@ -93,5 +109,7 @@ def upload_variants(
             logger.debug("Uploaded variant %s", v.variantId)
         else:
             logger.warning("Failed to upload variant %s", v.variantId)
-    return ok
 
+    if skipped:
+        logger.info("Skipped %d invalid variants", skipped)
+    return ok

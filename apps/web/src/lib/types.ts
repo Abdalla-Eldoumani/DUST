@@ -6,6 +6,8 @@ export interface PageSection {
   category: "headline" | "body" | "quote" | "statistic" | "attribution" | "metadata";
   decayOrder: number; // 1 (decays first) to 5 (decays last)
   archiveCost: number;
+  imageSrc?: string; // URL for inline image sections
+  imageAlt?: string; // Alt text for the image
 }
 
 // Complete page content (returned by content generator)

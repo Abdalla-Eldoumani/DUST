@@ -13,10 +13,12 @@ export interface DifficultyConfig {
 export function getDifficulty(level: number): DifficultyConfig {
   const clampedLevel = Math.min(level, GAME_CONSTANTS.MAX_LEVEL);
 
-  const decayDuration = Math.max(
-    GAME_CONSTANTS.BASE_DECAY_DURATION -
-      (clampedLevel - 1) * GAME_CONSTANTS.DECAY_REDUCTION_PER_LEVEL,
-    GAME_CONSTANTS.MIN_DECAY_DURATION
+  const decayDuration = Math.round(
+    Math.max(
+      GAME_CONSTANTS.BASE_DECAY_DURATION -
+        (clampedLevel - 1) * GAME_CONSTANTS.DECAY_REDUCTION_PER_LEVEL,
+      GAME_CONSTANTS.MIN_DECAY_DURATION
+    )
   );
 
   let misinfoCount: number;

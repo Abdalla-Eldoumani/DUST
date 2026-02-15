@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from dust_ingest.models import Level, MutationParams, PageSnapshot, UrlEntry
+from dust_ingest.models import Level, MutationParams, PageSnapshot, PageVariant, UrlEntry
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +126,51 @@ def build_levels(
     leveled_count = sum(len(lv.pageIds) for lv in levels)
     extra_count = len(url_entries) - idx
     logger.info(
-        "Built %d levels with %d pages, %d extra URLs remain (project=%s)",
+        "Built %d planned levels with %d pages, %d extra URLs remain (project=%s)",
         len(levels), leveled_count, extra_count, project_id,
+    )
+    return levels
+
+
+def rebuild_levels_from_variants(
+    variants: list[PageVariant],
+    project_id: str,
+    num_levels: int = NUM_LEVELS,
+) -> list[Level]:
+    """Build levels purely from the variants that were generated successfully.
+
+    Groups variants by their ``levelId``, then creates a :class:`Level`
+    for each group.  The difficulty and mutation params are derived from
+    the level number.  Levels with zero variants are not created.
+    """
+    # Group variant pageIds by levelId
+    level_page_ids: dict[str, set[str]] = {}
+    level_difficulty: dict[str, int] = {}
+    for v in variants:
+        level_page_ids.setdefault(v.levelId, set()).add(v.pageId)
+        level_difficulty.setdefault(v.levelId, v.difficulty)
+
+    levels: list[Level] = []
+    for level_id, page_ids in sorted(level_page_ids.items()):
+        diff = level_difficulty[level_id]
+        cap = _level_capacity(diff)
+        capped_pages = sorted(page_ids)[:cap]
+        if len(page_ids) > cap:
+            logger.info(
+                "Level %s (difficulty %d): capped from %d to %d pages",
+                level_id, diff, len(page_ids), cap,
+            )
+        levels.append(Level(
+            levelId=level_id,
+            projectId=project_id,
+            difficulty=diff,
+            pageIds=capped_pages,
+            mutationParams=_mutation_params(diff, num_levels),
+        ))
+
+    logger.info(
+        "Built %d levels from %d variants (project=%s)",
+        len(levels), len(variants), project_id,
     )
     return levels
 

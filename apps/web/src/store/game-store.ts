@@ -9,6 +9,11 @@ import type {
 } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
 
+/** Count false (misinformation) sections — used to set archive energy budget. */
+function countFalseSections(page: PageContent): number {
+  return page.sections.filter((s) => !s.isTrue).length;
+}
+
 interface GameState {
   // Game phase
   gamePhase: GamePhase;
@@ -95,6 +100,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   startLevelGame: (levelId, difficulty, pages) => {
     if (pages.length === 0) return;
+    const energy = countFalseSections(pages[0]!);
     set({
       ...initialState,
       gamePhase: "playing",
@@ -107,16 +113,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentPage: pages[0]!,
       decayProgress: 0,
       selectedSections: [],
+      archiveEnergy: energy,
+      maxArchiveEnergy: energy,
     });
   },
 
-  setCurrentPage: (page) =>
+  setCurrentPage: (page) => {
+    const energy = countFalseSections(page);
     set({
       currentPage: page,
       decayProgress: 0,
       selectedSections: [],
       gamePhase: "playing",
-    }),
+      archiveEnergy: energy,
+      maxArchiveEnergy: energy,
+    });
+  },
 
   setDecayProgress: (progress) => set({ decayProgress: progress }),
 
@@ -219,18 +231,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { currentLevel, pagesCompleted, levelPages, levelPageIndex } = get();
     const newLevel = pagesCompleted >= 2 ? currentLevel + 1 : currentLevel;
 
-    // Partial energy regen
-    const maxEnergy =
-      GAME_CONSTANTS.BASE_ARCHIVE_ENERGY +
-      Math.floor(newLevel / 2) * GAME_CONSTANTS.ENERGY_REGEN_PER_LEVEL;
+    // Energy = number of false sections on the new page
+    const energy = countFalseSections(page);
 
     set({
       currentPage: page,
       decayProgress: 0,
       selectedSections: [],
       currentLevel: Math.min(newLevel, GAME_CONSTANTS.MAX_LEVEL),
-      archiveEnergy: maxEnergy,
-      maxArchiveEnergy: maxEnergy,
+      archiveEnergy: energy,
+      maxArchiveEnergy: energy,
       pagesCompleted: pagesCompleted + 1,
       gamePhase: "playing",
       // Increment levelPageIndex when playing a Convex level

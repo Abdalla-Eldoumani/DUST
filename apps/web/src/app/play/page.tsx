@@ -41,6 +41,7 @@ export default function PlayPage() {
   // Level selection state — set when user picks a level from LevelSelector
   const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
   const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
+  const [levelError, setLevelError] = useState<string | null>(null);
 
   // Query variants for the selected level (skips when no level selected)
   const levelVariants = useQuery(
@@ -58,13 +59,25 @@ export default function PlayPage() {
     onProgress: store.setDecayProgress,
   });
 
-  // When variants arrive for a pending level, convert and start the game
+  // When variants arrive for a pending level, convert and start the game.
   useEffect(() => {
-    if (pendingLevelId && levelVariants && levelVariants.length > 0) {
-      const pages = levelVariants.map((v) =>
+    if (pendingLevelId && levelVariants) {
+      const matchingVariants = levelVariants.filter(
+        (v) => (v as unknown as ConvexVariant).levelId === pendingLevelId
+      );
+      const pages = matchingVariants.map((v) =>
         variantToPageContent(v as unknown as ConvexVariant)
       );
-      store.startLevelGame(pendingLevelId, pendingDifficulty, pages);
+      console.log(
+        `[DUST] Level ${pendingLevelId}: ${matchingVariants.length} variants loaded, ${pages.length} pages converted`
+      );
+      if (pages.length > 0) {
+        setLevelError(null);
+        store.startLevelGame(pendingLevelId, pendingDifficulty, pages);
+      } else {
+        console.warn(`[DUST] Level ${pendingLevelId}: no variants found`);
+        setLevelError("This level has no generated pages yet. Try another level or Quick Play.");
+      }
       setPendingLevelId(null);
       setPendingDifficulty(1);
     }
@@ -155,6 +168,8 @@ export default function PlayPage() {
     // If playing a selected level, use pre-loaded levelPages
     if (store.levelPages.length > 0) {
       const nextIndex = store.levelPageIndex + 1;
+      console.log("NEXTINDEX:",nextIndex)
+      console.log("LEVELPAGES:", store.levelPages.length)
       if (nextIndex >= store.levelPages.length) {
         store.endGame();
         return;
@@ -190,7 +205,9 @@ export default function PlayPage() {
   if (store.gamePhase === "menu") {
     return (
       <LevelSelector
+        levelError={levelError}
         onSelectLevel={(levelId, difficulty) => {
+          setLevelError(null);
           setPendingLevelId(levelId);
           setPendingDifficulty(difficulty);
         }}
@@ -391,7 +408,7 @@ export default function PlayPage() {
       {/* Bottom bar */}
       <div className="flex items-center justify-between border-t border-white/5 bg-surface/40 px-4 py-1.5">
         <div className="font-mono text-xs text-text-ghost">
-          Page {store.pagesCompleted + 1} of 5
+          Page {store.pagesCompleted + 1} of {store.levelPages.length > 0 ? store.levelPages.length : 5}
         </div>
         <div className="font-mono text-xs text-text-ghost">
           {store.demoMode && <span className="text-scan mr-2">DEMO</span>}

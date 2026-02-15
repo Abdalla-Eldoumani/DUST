@@ -16,7 +16,7 @@ Create a `.env` or export directly:
 export APIFY_TOKEN="apify_api_..."
 export LLM_API_KEY="your-api-key-here"
 export LLM_BASE_URL="https://api.deepinfra.com/v1/openai"
-export LLM_MODEL="moonshotai/Kimi-K2.5"
+export LLM_MODEL="meta-llama/Llama-3.3-70B-Instruct-Turbo"
 export CONVEX_URL="https://your-deployment.convex.cloud"
 
 # Optional (defaults shown):

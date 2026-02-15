@@ -9,10 +9,10 @@ export const GAME_CONSTANTS = {
   BASE_ARCHIVE_ENERGY: 5,
   ENERGY_REGEN_PER_LEVEL: 2,
 
-  // Decay
-  BASE_DECAY_DURATION: 60, // Seconds for level 1
-  DECAY_REDUCTION_PER_LEVEL: 5, // Seconds faster per level
-  MIN_DECAY_DURATION: 15, // Never faster than 15s
+  // Decay — level 1 = 120s, level 10 = 60s (linear)
+  BASE_DECAY_DURATION: 120, // Seconds for level 1
+  DECAY_REDUCTION_PER_LEVEL: 60 / 9, // ~6.67s faster per level
+  MIN_DECAY_DURATION: 60, // Never faster than 60s
 
   // Difficulty
   MAX_LEVEL: 10,
