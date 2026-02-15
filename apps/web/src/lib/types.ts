@@ -60,4 +60,5 @@ export interface GameResult {
   totalArchived: number;
   bestCombo: number;
   timePlayed: number; // Seconds
+  level: number;
 }
