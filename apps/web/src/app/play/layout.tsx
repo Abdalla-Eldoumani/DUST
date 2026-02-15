@@ -1,4 +1,5 @@
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
+import { GameErrorBoundary } from "@/components/game/error-boundary";
 
 export default function PlayLayout({
   children,
@@ -8,7 +9,7 @@ export default function PlayLayout({
   return (
     <div className="relative min-h-svh overflow-hidden bg-void">
       <ScanlineOverlay />
-      {children}
+      <GameErrorBoundary>{children}</GameErrorBoundary>
     </div>
   );
 }

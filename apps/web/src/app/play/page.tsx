@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
+import { getDemoPage } from "@/lib/content/demo-content";
 import { getDifficulty } from "@/lib/content/difficulty";
 
 import { NewsArticle } from "@/components/game/fake-page/news-article";
@@ -45,7 +46,9 @@ export default function PlayPage() {
   // Load first page when game starts
   useEffect(() => {
     if (store.gamePhase === "loading") {
-      const page = getRandomCachedPage(usedIdsRef.current, store.currentLevel);
+      const page = store.demoMode
+        ? getDemoPage(0)
+        : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
       usedIdsRef.current.push(page.id);
       store.setCurrentPage(page);
     }
@@ -96,17 +99,17 @@ export default function PlayPage() {
   }, [decayEngine, store]);
 
   const handleNextPage = useCallback(() => {
-    // Check if we should end the game (after enough pages)
-    if (store.pagesCompleted >= 4) {
+    // Demo mode: 5 curated pages; normal mode: 5 random pages
+    const totalPages = store.demoMode ? 5 : 5;
+    if (store.pagesCompleted >= totalPages - 1) {
       const result = store.endGame();
       setGameResult(result);
       return;
     }
 
-    const page = getRandomCachedPage(
-      usedIdsRef.current,
-      store.currentLevel
-    );
+    const page = store.demoMode
+      ? getDemoPage(store.pagesCompleted + 1)
+      : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
     usedIdsRef.current.push(page.id);
     store.nextPage(page);
   }, [store]);
@@ -339,6 +342,7 @@ export default function PlayPage() {
           Page {store.pagesCompleted + 1} of 5
         </div>
         <div className="font-mono text-xs text-text-ghost">
+          {store.demoMode && <span className="text-scan mr-2">DEMO</span>}
           {page.contentType.toUpperCase()} · Difficulty: {difficulty.label}
         </div>
       </div>

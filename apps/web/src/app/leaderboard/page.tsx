@@ -23,19 +23,29 @@ const DEMO_LEADERBOARD = [
   { username: "NewArchiver", score: 800, accuracy: 65, level: 3 },
 ];
 
+interface LeaderboardEntry {
+  rank: number;
+  username: string;
+  score: number;
+  accuracy: number;
+  level: number;
+}
+
 export default function LeaderboardPage() {
   const convexData = useQuery(api.leaderboard.getTop, { limit: 20 });
 
   // Use Convex data if available and non-empty, otherwise fallback
-  const entries =
+  const entries: LeaderboardEntry[] =
     convexData && convexData.length > 0
-      ? convexData.map((e, i) => ({
-          rank: i + 1,
-          username: e.username,
-          score: e.score,
-          accuracy: e.accuracy,
-          level: e.level,
-        }))
+      ? convexData.map(
+          (e: { username: string; score: number; accuracy: number; level: number }, i: number) => ({
+            rank: i + 1,
+            username: e.username,
+            score: e.score,
+            accuracy: e.accuracy,
+            level: e.level,
+          })
+        )
       : DEMO_LEADERBOARD.map((e, i) => ({ rank: i + 1, ...e }));
 
   return (
