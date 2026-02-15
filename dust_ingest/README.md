@@ -1,0 +1,76 @@
+# DUST Ingestion + Level Builder
+
+Apify-based web scraping → OpenAI alteration → Convex upload pipeline for the DUST digital archaeology game.
+
+## Setup
+
+```bash
+pip install -r dust_ingest/requirements.txt
+```
+
+### Environment variables
+
+Create a `.env` or export directly:
+
+```bash
+export APIFY_TOKEN="apify_api_..."
+export OPENAI_API_KEY="sk-..."
+export CONVEX_URL="https://your-deployment.convex.cloud"
+
+# Optional (defaults shown):
+export APIFY_ACTOR_ID="apify/website-content-crawler"
+export APIFY_FALLBACK_ACTOR_ID=""
+export APIFY_TIMEOUT_SECS="120"
+export OPENAI_MODEL="gpt-4o"
+export CONCURRENCY="3"
+export RETRIES="2"
+```
+
+## Usage
+
+### One-command run
+
+```bash
+python -m dust_ingest build --input urls.json --project "calgaryhacks2026" --levels 10
+```
+
+### Input file format
+
+```json
+{
+  "projectId": "calgaryhacks2026",
+  "urls": [
+    {"url": "https://example.com/article-1", "tags": ["news"]},
+    {"url": "https://example.com/blog-post",  "tags": ["blog"]}
+  ]
+}
+```
+
+Also accepts the short form:
+
+```json
+{"urls": ["https://example.com/a", "https://example.com/b"]}
+```
+
+## Pipeline stages
+
+1. **Scrape** — Apify actor fetches rendered HTML for each URL (depth 0, no wandering)
+2. **Sanitize** — Scripts stripped, relative URLs absolutized, ~1000 word cap per page
+3. **Normalize** — Extract structured elements (headings, paragraphs, images, …)
+4. **Level build** — Sort pages by complexity, distribute into 10 levels
+5. **Alter** — OpenAI injects difficulty-scaled misinformation with `<FAKE:>` / `<MISLEADING:>` tags
+6. **Upload** — Pages, levels, and variants pushed to Convex via HTTP mutations
+
+All output is also cached locally for inspection.
+
+## Local cache
+
+After a run, inspect cached data at:
+
+```
+./cache/pages/<pageId>/snapshot.json
+./cache/pages/<pageId>/raw.html
+./cache/levels/level_01.json … level_10.json
+./cache/variants/<variantId>.json
+```
+

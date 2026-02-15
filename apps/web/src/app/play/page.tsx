@@ -3,17 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@DUST/backend/convex/_generated/api";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
 import { getDemoPage } from "@/lib/content/demo-content";
 import { getDifficulty } from "@/lib/content/difficulty";
+import { variantToPageContent, type ConvexVariant } from "@/lib/content/convex-adapter";
 
 import { NewsArticle } from "@/components/game/fake-page/news-article";
 import { BlogPost } from "@/components/game/fake-page/blog-post";
 import { SocialThread } from "@/components/game/fake-page/social-thread";
 import { WikiArticle } from "@/components/game/fake-page/wiki-article";
 
+import { LevelSelector } from "@/components/game/level-selector";
 import { DecayTimer } from "@/components/game/decay-timer";
 import { ToolPanel } from "@/components/game/tools/tool-panel";
 import { EnergyBar } from "@/components/game/archive/energy-bar";
@@ -33,6 +37,16 @@ export default function PlayPage() {
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [screenShake, setScreenShake] = useState(false);
 
+  // Level selection state — set when user picks a level from LevelSelector
+  const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
+  const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
+
+  // Query variants for the selected level (skips when no level selected)
+  const levelVariants = useQuery(
+    api.pageVariants.getByLevelId,
+    pendingLevelId ? { levelId: pendingLevelId } : "skip"
+  );
+
   const difficulty = useMemo(
     () => getDifficulty(store.currentLevel),
     [store.currentLevel]
@@ -43,9 +57,20 @@ export default function PlayPage() {
     onProgress: store.setDecayProgress,
   });
 
-  // Load first page when game starts
+  // When variants arrive for a pending level, convert and start the game
   useEffect(() => {
-    if (store.gamePhase === "loading") {
+    if (pendingLevelId && levelVariants && levelVariants.length > 0) {
+      const pages = levelVariants.map((v) =>
+        variantToPageContent(v as unknown as ConvexVariant)
+      );
+      store.startLevelGame(pendingLevelId, pendingDifficulty, pages);
+      setPendingLevelId(null);
+    }
+  }, [levelVariants, pendingLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load first page when game starts (quick play / demo mode — no level selected)
+  useEffect(() => {
+    if (store.gamePhase === "loading" && !pendingLevelId) {
       const page = store.demoMode
         ? getDemoPage(0)
         : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
@@ -99,6 +124,19 @@ export default function PlayPage() {
   }, [decayEngine, store]);
 
   const handleNextPage = useCallback(() => {
+    // If playing a selected level, use pre-loaded levelPages
+    if (store.levelPages.length > 0) {
+      const nextIndex = store.levelPageIndex + 1;
+      if (nextIndex >= store.levelPages.length) {
+        const result = store.endGame();
+        setGameResult(result);
+        return;
+      }
+      const nextPage = store.levelPages[nextIndex]!;
+      store.nextPage(nextPage);
+      return;
+    }
+
     // Demo mode: 5 curated pages; normal mode: 5 random pages
     const totalPages = store.demoMode ? 5 : 5;
     if (store.pagesCompleted >= totalPages - 1) {
@@ -117,51 +155,22 @@ export default function PlayPage() {
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
     setGameResult(null);
-    store.startGame();
+    setPendingLevelId(null);
+    setPendingDifficulty(1);
+    store.resetGame();
   }, [store]);
 
   // ─── MENU STATE ───
   if (store.gamePhase === "menu") {
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center relative">
-        <ParticleField particleCount={40} />
-        <div className="relative z-10 text-center px-4">
-          <GlowText
-            as="h1"
-            color="green"
-            intensity="high"
-            className="font-mono text-6xl font-bold mb-4"
-          >
-            DUST
-          </GlowText>
-          <p className="font-serif text-text-secondary mb-8 max-w-sm mx-auto">
-            Analyze web pages for misinformation. Archive the truth before it
-            decays.
-          </p>
-
-          <div className="flex flex-col gap-3 items-center">
-            <button
-              onClick={() => store.startGame(false)}
-              className="px-8 py-3 font-mono text-sm uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
-            >
-              Start Game
-            </button>
-            <button
-              onClick={() => store.startGame(true)}
-              className="px-8 py-3 font-mono text-sm uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
-            >
-              Demo Mode
-            </button>
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 mt-4 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Menu
-            </Link>
-          </div>
-        </div>
-      </div>
+      <LevelSelector
+        onSelectLevel={(levelId, difficulty) => {
+          setPendingLevelId(levelId);
+          setPendingDifficulty(difficulty);
+        }}
+        onQuickPlay={() => store.startGame(false)}
+        onDemoMode={() => store.startGame(true)}
+      />
     );
   }
 
