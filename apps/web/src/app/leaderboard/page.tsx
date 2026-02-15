@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -13,7 +13,7 @@ import { FireBarrier } from "@/components/ui/fire-barrier";
 import { UserRankCard, NoRankCard } from "@/components/leaderboard/user-rank-card";
 import { LeaderboardTable } from "@/components/leaderboard/leaderboard-table";
 
-export default function LeaderboardPage() {
+function LeaderboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useUser();
@@ -160,5 +160,25 @@ export default function LeaderboardPage() {
         </TerminalPanel>
       </div>
     </div>
+  );
+}
+
+function LeaderboardFallback() {
+  return (
+    <div className="relative min-h-svh bg-void">
+      <div className="flex min-h-svh items-center justify-center">
+        <div className="font-mono text-sm text-text-ghost animate-pulse">
+          Loading leaderboard...
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <Suspense fallback={<LeaderboardFallback />}>
+      <LeaderboardContent />
+    </Suspense>
   );
 }

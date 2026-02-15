@@ -72,10 +72,10 @@ export default function PlayPage() {
   useEffect(() => {
     if (pendingLevelId && levelVariants) {
       const matchingVariants = levelVariants.filter(
-        (v) => (v as unknown as ConvexVariant).levelId === pendingLevelId
+        (v: unknown) => (v as ConvexVariant).levelId === pendingLevelId
       );
-      const pages = matchingVariants.map((v) =>
-        variantToPageContent(v as unknown as ConvexVariant)
+      const pages = matchingVariants.map((v: unknown) =>
+        variantToPageContent(v as ConvexVariant)
       );
       console.log(
         `[DUST] Level ${pendingLevelId}: ${matchingVariants.length} variants loaded, ${pages.length} pages converted`
