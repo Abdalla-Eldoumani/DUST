@@ -32,6 +32,10 @@ export default defineSchema({
     clerkId: v.string(),
     username: v.string(),
     avatarUrl: v.string(),
+    leaderboardType: v.optional(
+      v.union(v.literal("solo"), v.literal("coop"))
+    ),
+    boardKey: v.optional(v.string()),
     score: v.number(),
     accuracy: v.number(),
     level: v.number(),
@@ -39,7 +43,9 @@ export default defineSchema({
     achievedAt: v.number(),
   })
     .index("by_score", ["score"])
-    .index("by_clerkId", ["clerkId"]),
+    .index("by_clerkId", ["clerkId"])
+    .index("by_boardKey_score", ["boardKey", "score"])
+    .index("by_clerkId_boardKey", ["clerkId", "boardKey"]),
 
   archives: defineTable({
     userId: v.string(),
@@ -217,4 +223,3 @@ export default defineSchema({
     .index("by_levelId_projectId", ["levelId", "projectId"])
     .index("by_projectId", ["projectId"]),
 });
-

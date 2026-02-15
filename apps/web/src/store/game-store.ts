@@ -259,7 +259,15 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   endGame: () => {
-    const { score, archive, bestCombo, pagesCompleted, gameStartedAt, currentPage } = get();
+    const {
+      score,
+      archive,
+      bestCombo,
+      pagesCompleted,
+      gameStartedAt,
+      currentPage,
+      selectedDifficulty,
+    } = get();
     const correctItems = archive.filter((a) => a.wasCorrect).length;
     const accuracy =
       archive.length > 0
@@ -276,7 +284,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       totalArchived: archive.length,
       bestCombo,
       timePlayed,
-      level: get().currentLevel,
+      level: selectedDifficulty ?? get().currentLevel,
     };
 
     set({

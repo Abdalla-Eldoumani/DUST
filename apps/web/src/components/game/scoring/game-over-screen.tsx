@@ -24,6 +24,7 @@ export function GameOverScreen({
 }: GameOverScreenProps) {
   const submitScore = useMutation(api.leaderboard.submit);
   const [submitState, setSubmitState] = useState<"idle" | "submitting" | "saved" | "error">("idle");
+  const [submitMessage, setSubmitMessage] = useState("Score saved!");
 
   useEffect(() => {
     if (submitState !== "idle") return;
@@ -33,10 +34,16 @@ export function GameOverScreen({
       accuracy: result.accuracy,
       level: result.level,
       pagesCompleted: result.pagesCompleted,
+      leaderboardType: "solo",
     })
-      .then(() => {
+      .then((res) => {
+        setSubmitMessage(
+          res.leaderboardUpdated ? "Score saved and leaderboard updated!" : "Score checked (best score unchanged)."
+        );
         setSubmitState("saved");
-        toast.success("Score saved to leaderboard!");
+        if (res.leaderboardUpdated) {
+          toast.success("Score saved to leaderboard!");
+        }
       })
       .catch(() => {
         setSubmitState("error");
@@ -140,7 +147,7 @@ export function GameOverScreen({
           {submitState === "saved" && (
             <span className="inline-flex items-center gap-1.5 font-mono text-xs text-archive">
               <Check className="h-3 w-3" />
-              Score saved!
+              {submitMessage}
             </span>
           )}
           {submitState === "error" && (

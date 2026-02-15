@@ -96,6 +96,7 @@ export function MatchResults({
         accuracy: 75,
         level: maxRounds,
         pagesCompleted: maxRounds,
+        leaderboardType: mode === "coop" ? "coop" : "solo",
       })
         .then(() => toast.success("Score saved to leaderboard!"))
         .catch(() => { /* silent */ });
