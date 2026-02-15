@@ -1,6 +1,6 @@
 # DUST Ingestion + Level Builder
 
-Apify-based web scraping → OpenAI alteration → Convex upload pipeline for the DUST digital archaeology game.
+Apify-based web scraping → LLM alteration → Convex upload pipeline for the DUST digital archaeology game.
 
 ## Setup
 
@@ -14,14 +14,15 @@ Create a `.env` or export directly:
 
 ```bash
 export APIFY_TOKEN="apify_api_..."
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="your-api-key-here"
+export LLM_BASE_URL="https://api.deepinfra.com/v1/openai"
+export LLM_MODEL="moonshotai/Kimi-K2.5"
 export CONVEX_URL="https://your-deployment.convex.cloud"
 
 # Optional (defaults shown):
 export APIFY_ACTOR_ID="apify/website-content-crawler"
 export APIFY_FALLBACK_ACTOR_ID=""
 export APIFY_TIMEOUT_SECS="120"
-export OPENAI_MODEL="gpt-4o"
 export CONCURRENCY="3"
 export RETRIES="2"
 ```
@@ -58,7 +59,7 @@ Also accepts the short form:
 2. **Sanitize** — Scripts stripped, relative URLs absolutized, ~1000 word cap per page
 3. **Normalize** — Extract structured elements (headings, paragraphs, images, …)
 4. **Level build** — Sort pages by complexity, distribute into 10 levels
-5. **Alter** — OpenAI injects difficulty-scaled misinformation with `<FAKE:>` / `<MISLEADING:>` tags
+5. **Alter** — LLM injects difficulty-scaled misinformation with `<FAKE:>` / `<MISLEADING:>` tags
 6. **Upload** — Pages, levels, and variants pushed to Convex via HTTP mutations
 
 All output is also cached locally for inspection.

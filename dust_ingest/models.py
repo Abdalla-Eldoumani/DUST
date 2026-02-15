@@ -72,11 +72,11 @@ class PageSnapshot(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# OpenAI alteration models
+# LLM alteration models
 # ---------------------------------------------------------------------------
 
 class FakeMark(BaseModel):
-    """A single fake/misleading span injected by OpenAI."""
+    """A single fake/misleading span injected by the LLM."""
     kind: Literal["FAKE", "MISLEADING"]
     elementId: str | None = None
     snippet: str
@@ -84,7 +84,7 @@ class FakeMark(BaseModel):
 
 
 class AlteredPage(BaseModel):
-    """Result of OpenAI alteration for one page."""
+    """Result of LLM alteration for one page."""
     alteredContent: str
     fakeMarks: list[FakeMark] = Field(default_factory=list)
 
@@ -134,8 +134,9 @@ class PipelineConfig(BaseModel):
     apify_actor_id: str = "apify/website-content-crawler"
     apify_fallback_actor_id: str | None = None
     apify_timeout_secs: int = 120
-    openai_api_key: str
-    openai_model: str = "gpt-4o"
+    llm_api_key: str
+    llm_base_url: str = "https://api.deepinfra.com/v1/openai"
+    llm_model: str = "moonshotai/Kimi-K2.5"
     convex_url: str  # e.g. "https://hushed-fennec-813.convex.cloud"
     concurrency: int = 3
     retries: int = 2
