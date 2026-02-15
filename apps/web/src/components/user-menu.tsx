@@ -57,7 +57,7 @@ function SignedInMenu() {
       <DropdownMenuContent align="end" className="bg-surface border border-white/10 min-w-[160px]">
         <DropdownMenuItem
           className="gap-2 cursor-pointer text-text-secondary hover:text-text-primary"
-          onSelect={() => openUserProfile()}
+          onClick={() => openUserProfile()}
         >
           <Settings className="h-3.5 w-3.5" />
           Manage Account
@@ -65,7 +65,7 @@ function SignedInMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="gap-2 cursor-pointer text-decay hover:text-decay"
-          onSelect={() => signOut({ redirectUrl: "/" })}
+          onClick={() => signOut({ redirectUrl: "/" })}
         >
           <LogOut className="h-3.5 w-3.5" />
           Sign Out
