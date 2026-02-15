@@ -120,7 +120,6 @@ export function CoopGame({
       handleArchive();
     } else {
       setHasArchived(true);
-      decayEngine.pause();
       setRoundScore(0);
       submitAction({
         roomId,
@@ -209,7 +208,6 @@ export function CoopGame({
   const handleArchive = useCallback(async () => {
     if (hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
-    decayEngine.pause();
 
     let score = 0;
     for (const sId of selectedSections) {
@@ -233,7 +231,7 @@ export function CoopGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction, decayEngine]);
+  }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction]);
 
   return (
     <div className="flex flex-col gap-3 h-full">
