@@ -2,14 +2,25 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { toast } from "sonner";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
-import { getRandomCachedPage } from "@/lib/content/content-cache";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
 import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
+
+const PROJECT_ID = "calgaryhacks2026";
+const ROUND_DIFFICULTY_SEQUENCE = [1, 3, 5, 7, 9] as const;
+
+function difficultyForRound(round: number): number {
+  const idx = Math.max(0, Math.min(round - 1, ROUND_DIFFICULTY_SEQUENCE.length - 1));
+  return ROUND_DIFFICULTY_SEQUENCE[idx]!;
+}
+
+function levelIdForDifficulty(projectId: string, difficulty: number): string {
+  return `${projectId}_level_${difficulty.toString().padStart(2, "0")}`;
+}
 
 interface RoundResultsProps {
   roomId: Id<"multiplayerRooms">;
@@ -32,6 +43,9 @@ export function RoundResults({
 }: RoundResultsProps) {
   const nextRound = useMutation(api.multiplayer.nextRound);
   const finishGame = useMutation(api.multiplayer.finishGame);
+  const variantCounts = useQuery(api.pageVariants.countValidByProject, {
+    projectId: PROJECT_ID,
+  });
   const [advancing, setAdvancing] = useState(false);
 
   const isLastRound = currentRound >= maxRounds;
@@ -63,13 +77,23 @@ export function RoundResults({
     if (!isHost) return;
     setAdvancing(true);
     try {
-      const content = getRandomCachedPage([], Math.min(3 + currentRound, 8));
+      const nextRoundNumber = currentRound + 1;
+      const nextDifficulty = difficultyForRound(nextRoundNumber);
+      const contentId = levelIdForDifficulty(PROJECT_ID, nextDifficulty);
+      if (!variantCounts) {
+        throw new Error("Still loading archive variants. Please try again.");
+      }
+      if ((variantCounts[contentId] ?? 0) <= 0) {
+        throw new Error(
+          `No Convex variants found for difficulty ${nextDifficulty}.`
+        );
+      }
       await nextRound({
         roomId,
-        contentId: content.id,
+        contentId,
       });
     } catch (err) {
-      toast.error("Failed to advance round");
+      toast.error(err instanceof Error ? err.message : "Failed to advance round");
       setAdvancing(false);
     }
   };

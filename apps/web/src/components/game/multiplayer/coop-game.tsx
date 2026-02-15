@@ -7,8 +7,7 @@ import { api } from "@DUST/backend/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
-import type { PageContent } from "@/lib/types";
-import { getContentById, getRandomCachedPage } from "@/lib/content/content-cache";
+import { variantToPageContent, type ConvexVariant } from "@/lib/content/convex-adapter";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { GAME_CONSTANTS } from "@/lib/constants";
 import { DecayingPage } from "@/components/game/decaying-page";
@@ -22,6 +21,20 @@ import { GlowText } from "@/components/ui/glow-text";
 import { useMultiplayerStore } from "@/store/multiplayer-store";
 import { LogOut } from "lucide-react";
 import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
+
+function variantIndexForRound(
+  roomId: Id<"multiplayerRooms">,
+  currentRound: number,
+  count: number
+): number {
+  if (count <= 1) return 0;
+  const key = `${String(roomId)}:${currentRound}`;
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return hash % count;
+}
 
 interface CoopGameProps {
   roomId: Id<"multiplayerRooms">;
@@ -59,11 +72,20 @@ export function CoopGame({
     roomId,
     round: currentRound,
   });
+  const variantsForLevel = useQuery(api.pageVariants.getByLevelId, {
+    levelId: contentId,
+  });
 
-  const content = useMemo(
-    () => getContentById(contentId) ?? getRandomCachedPage([], 3),
-    [contentId]
-  );
+  const content = useMemo(() => {
+    if (!variantsForLevel || variantsForLevel.length === 0) return null;
+    const sorted = [...variantsForLevel].sort((a, b) =>
+      String((a as unknown as ConvexVariant).variantId).localeCompare(
+        String((b as unknown as ConvexVariant).variantId)
+      )
+    );
+    const idx = variantIndexForRound(roomId, currentRound, sorted.length);
+    return variantToPageContent(sorted[idx] as unknown as ConvexVariant);
+  }, [variantsForLevel, roomId, currentRound]);
 
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [localEnergy, setLocalEnergy] = useState(sharedEnergy);
@@ -76,7 +98,7 @@ export function CoopGame({
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
-    duration: content.decayDuration,
+    duration: content?.decayDuration ?? 60,
     onProgress: setDecayProgress,
   });
 
@@ -87,10 +109,11 @@ export function CoopGame({
 
   // Start decay
   useEffect(() => {
+    if (!content) return;
     decayEngine.reset();
     decayEngine.start();
     return () => decayEngine.pause();
-  }, [currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentRound, content?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Watch for partner pings
   useEffect(() => {
@@ -183,7 +206,7 @@ export function CoopGame({
 
   const handleSelect = useCallback(
     (sectionId: string) => {
-      if (hasArchived) return;
+      if (!content || hasArchived) return;
       const section = content.sections.find((s) => s.id === sectionId);
       if (!section) return;
 
@@ -207,11 +230,11 @@ export function CoopGame({
         data: JSON.stringify({ sectionId, playerId: user?.id }),
       }).catch(() => {});
     },
-    [hasArchived, content.sections, selectedSections, localEnergy, roomId, updateEnergy, submitAction, user]
+    [content, hasArchived, selectedSections, localEnergy, roomId, updateEnergy, submitAction, user]
   );
 
   const handleArchive = useCallback(async () => {
-    if (hasArchived || selectedSections.length === 0) return;
+    if (!content || hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
 
     let score = 0;
@@ -236,7 +259,7 @@ export function CoopGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction]);
+  }, [content, hasArchived, selectedSections, decayProgress, roomId, submitAction]);
 
   const handleLeaveGame = useCallback(async () => {
     if (leaving) return;
@@ -248,6 +271,14 @@ export function CoopGame({
     }
     router.push("/multiplayer");
   }, [leaving, leaveRoom, roomId, router]);
+
+  if (!content) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center border border-white/10 bg-surface/40">
+        <span className="font-mono text-sm text-text-ghost">Loading round content...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">

@@ -7,8 +7,7 @@ import { api } from "@DUST/backend/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
-import type { PageContent, PageSection } from "@/lib/types";
-import { getContentById, getRandomCachedPage } from "@/lib/content/content-cache";
+import { variantToPageContent, type ConvexVariant } from "@/lib/content/convex-adapter";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { GAME_CONSTANTS } from "@/lib/constants";
 import { DecayingPage } from "@/components/game/decaying-page";
@@ -20,6 +19,20 @@ import { OpponentStatus } from "./opponent-status";
 import { GlowText } from "@/components/ui/glow-text";
 import { LogOut } from "lucide-react";
 import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
+
+function variantIndexForRound(
+  roomId: Id<"multiplayerRooms">,
+  currentRound: number,
+  count: number
+): number {
+  if (count <= 1) return 0;
+  const key = `${String(roomId)}:${currentRound}`;
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return hash % count;
+}
 
 interface RaceGameProps {
   roomId: Id<"multiplayerRooms">;
@@ -45,11 +58,20 @@ export function RaceGame({
     roomId,
     round: currentRound,
   });
+  const variantsForLevel = useQuery(api.pageVariants.getByLevelId, {
+    levelId: contentId,
+  });
 
-  const content = useMemo(
-    () => getContentById(contentId) ?? getRandomCachedPage([], 3),
-    [contentId]
-  );
+  const content = useMemo(() => {
+    if (!variantsForLevel || variantsForLevel.length === 0) return null;
+    const sorted = [...variantsForLevel].sort((a, b) =>
+      String((a as unknown as ConvexVariant).variantId).localeCompare(
+        String((b as unknown as ConvexVariant).variantId)
+      )
+    );
+    const idx = variantIndexForRound(roomId, currentRound, sorted.length);
+    return variantToPageContent(sorted[idx] as unknown as ConvexVariant);
+  }, [variantsForLevel, roomId, currentRound]);
 
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [archiveEnergy, setArchiveEnergy] = useState<number>(GAME_CONSTANTS.BASE_ARCHIVE_ENERGY);
@@ -62,16 +84,17 @@ export function RaceGame({
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
-    duration: content.decayDuration,
+    duration: content?.decayDuration ?? 60,
     onProgress: setDecayProgress,
   });
 
   // Start decay
   useEffect(() => {
+    if (!content) return;
     decayEngine.reset();
     decayEngine.start();
     return () => decayEngine.pause();
-  }, [currentRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentRound, content?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive which other players have archived from roundActions
   const archivedPlayerIds = useMemo(() => {
@@ -162,7 +185,7 @@ export function RaceGame({
 
   const handleSelect = useCallback(
     (sectionId: string) => {
-      if (hasArchived) return;
+      if (!content || hasArchived) return;
       const section = content.sections.find((s) => s.id === sectionId);
       if (!section) return;
 
@@ -175,11 +198,11 @@ export function RaceGame({
         setArchiveEnergy((e) => e - section.archiveCost);
       }
     },
-    [hasArchived, content.sections, selectedSections, archiveEnergy]
+    [content, hasArchived, selectedSections, archiveEnergy]
   );
 
   const handleArchive = useCallback(async () => {
-    if (hasArchived || selectedSections.length === 0) return;
+    if (!content || hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
 
     // Score selected sections
@@ -211,7 +234,7 @@ export function RaceGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, archivedPlayerIds, roomId, submitAction]);
+  }, [content, hasArchived, selectedSections, decayProgress, archivedPlayerIds, roomId, submitAction]);
 
   const handleLeaveGame = useCallback(async () => {
     if (leaving) return;
@@ -223,6 +246,14 @@ export function RaceGame({
     }
     router.push("/multiplayer");
   }, [leaving, leaveRoom, roomId, router]);
+
+  if (!content) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center border border-white/10 bg-surface/40">
+        <span className="font-mono text-sm text-text-ghost">Loading round content...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 h-full min-h-0">
