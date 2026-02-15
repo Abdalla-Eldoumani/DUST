@@ -179,6 +179,11 @@ export default function MultiplayerRoomPage({
               sharedScore={room.sharedScore ?? undefined}
               maxRounds={room.maxRounds}
               isHost={isHost}
+              opponentPresent={
+                isHost
+                  ? room.guestPresent ?? false
+                  : room.hostPresent ?? false
+              }
             />
           )}
         </div>

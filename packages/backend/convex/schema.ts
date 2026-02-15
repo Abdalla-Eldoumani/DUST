@@ -90,6 +90,8 @@ export default defineSchema({
     guestScore: v.number(),
     sharedEnergy: v.optional(v.number()),
     sharedScore: v.optional(v.number()),
+    hostPresent: v.optional(v.boolean()),
+    guestPresent: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

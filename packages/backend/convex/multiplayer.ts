@@ -247,6 +247,28 @@ export const finishGame = mutation({
 
     await ctx.db.patch(args.roomId, {
       status: "finished",
+      hostPresent: true,
+      guestPresent: true,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const setPresence = mutation({
+  args: {
+    roomId: v.id("multiplayerRooms"),
+    present: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return;
+
+    const isHost = room.hostClerkId === identity.subject;
+    await ctx.db.patch(args.roomId, {
+      ...(isHost ? { hostPresent: args.present } : { guestPresent: args.present }),
       updatedAt: Date.now(),
     });
   },
