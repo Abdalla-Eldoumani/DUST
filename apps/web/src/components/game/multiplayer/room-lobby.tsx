@@ -10,16 +10,14 @@ import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
+import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
 
 interface RoomLobbyProps {
   roomId: Id<"multiplayerRooms">;
   roomCode: string;
   mode: "race" | "coop";
   isHost: boolean;
-  hostUsername: string;
-  hostAvatarUrl: string;
-  guestUsername: string;
-  guestAvatarUrl: string;
+  players: PlayerInfo[];
 }
 
 export function RoomLobby({
@@ -27,10 +25,7 @@ export function RoomLobby({
   roomCode,
   mode,
   isHost,
-  hostUsername,
-  hostAvatarUrl,
-  guestUsername,
-  guestAvatarUrl,
+  players,
 }: RoomLobbyProps) {
   const startGame = useMutation(api.multiplayer.startGame);
   const [starting, setStarting] = useState(false);
@@ -45,6 +40,8 @@ export function RoomLobby({
       setStarting(false);
     }
   };
+
+  const separator = mode === "race" ? "VS" : "&";
 
   return (
     <div className="flex flex-col items-center justify-center py-16">
@@ -63,42 +60,43 @@ export function RoomLobby({
           </div>
 
           {/* Players */}
-          <div className="flex items-center justify-center gap-8">
-            {/* Host */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex flex-col items-center gap-2"
-            >
-              <img src={hostAvatarUrl} alt="" className="h-16 w-16 rounded-full border-2 border-scan/40" />
-              <span className="font-mono text-sm text-text-primary">{hostUsername}</span>
-              <span className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider border border-scan/30 text-scan">
-                Host
-              </span>
-            </motion.div>
-
-            {/* VS */}
-            <GlowText
-              as="span"
-              color="amber"
-              intensity="medium"
-              className="font-mono text-2xl font-bold text-amber"
-            >
-              {mode === "race" ? "VS" : "&"}
-            </GlowText>
-
-            {/* Guest */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex flex-col items-center gap-2"
-            >
-              <img src={guestAvatarUrl} alt="" className="h-16 w-16 rounded-full border-2 border-archive/40" />
-              <span className="font-mono text-sm text-text-primary">{guestUsername}</span>
-              <span className="px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider border border-archive/30 text-archive">
-                Guest
-              </span>
-            </motion.div>
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            {players.map((player, idx) => (
+              <div key={player.clerkId} className="flex items-center gap-4">
+                {idx > 0 && (
+                  <GlowText
+                    as="span"
+                    color="amber"
+                    intensity="medium"
+                    className="font-mono text-2xl font-bold text-amber"
+                  >
+                    {separator}
+                  </GlowText>
+                )}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="flex flex-col items-center gap-2"
+                >
+                  <img
+                    src={player.avatarUrl}
+                    alt=""
+                    className={`h-16 w-16 rounded-full border-2 ${
+                      player.isHost ? "border-scan/40" : "border-archive/40"
+                    }`}
+                  />
+                  <span className="font-mono text-sm text-text-primary">{player.username}</span>
+                  <span className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider border ${
+                    player.isHost
+                      ? "border-scan/30 text-scan"
+                      : "border-archive/30 text-archive"
+                  }`}>
+                    {player.isHost ? "Host" : `Player ${player.joinOrder + 1}`}
+                  </span>
+                </motion.div>
+              </div>
+            ))}
           </div>
 
           {/* Start button or waiting message */}

@@ -17,6 +17,8 @@ interface RoomWaitingProps {
   hostUsername: string;
   hostAvatarUrl: string;
   mode: "race" | "coop";
+  playerCount: number;
+  maxPlayers: number;
 }
 
 export function RoomWaiting({
@@ -25,6 +27,8 @@ export function RoomWaiting({
   hostUsername,
   hostAvatarUrl,
   mode,
+  playerCount,
+  maxPlayers,
 }: RoomWaitingProps) {
   const router = useRouter();
   const leaveRoom = useMutation(api.multiplayer.leaveRoom);
@@ -48,7 +52,7 @@ export function RoomWaiting({
 
   return (
     <div className="flex flex-col items-center justify-center py-16">
-      <TerminalPanel title="WAITING FOR OPPONENT" glowColor="cyan">
+      <TerminalPanel title="WAITING FOR PLAYERS" glowColor="cyan">
         <div className="p-8 text-center space-y-6">
           {/* Room code */}
           <div>
@@ -102,7 +106,9 @@ export function RoomWaiting({
             className="flex items-center justify-center gap-2 text-text-ghost"
           >
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="font-mono text-sm">Waiting for opponent to join...</span>
+            <span className="font-mono text-sm">
+              Waiting for players ({playerCount}/{maxPlayers})...
+            </span>
           </motion.div>
 
           {/* Cancel */}

@@ -21,14 +21,14 @@ import { PingSystem } from "./ping-system";
 import { GlowText } from "@/components/ui/glow-text";
 import { useMultiplayerStore } from "@/store/multiplayer-store";
 import { LogOut } from "lucide-react";
+import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
 
 interface CoopGameProps {
   roomId: Id<"multiplayerRooms">;
   currentRound: number;
   contentId: string;
   isHost: boolean;
-  partnerName: string;
-  partnerAvatar: string;
+  partners: PlayerInfo[];
   sharedEnergy: number;
   sharedScore: number;
 }
@@ -38,8 +38,7 @@ export function CoopGame({
   currentRound,
   contentId,
   isHost,
-  partnerName,
-  partnerAvatar,
+  partners,
   sharedEnergy,
   sharedScore,
 }: CoopGameProps) {
@@ -106,13 +105,15 @@ export function CoopGame({
     }
   }, [roundActions?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check if partner has archived
-  const partnerArchived = useMemo(() => {
-    if (!roundActions || !user) return false;
-    return roundActions.some(
-      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id
-    );
+  // Derive which partners have archived
+  const archivedPlayerIds = useMemo(() => {
+    if (!roundActions || !user) return [] as string[];
+    return roundActions
+      .filter((a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id)
+      .map((a: { action: string; clerkId: string }) => a.clerkId);
   }, [roundActions, user]);
+
+  const allPartnersArchived = archivedPlayerIds.length >= partners.length;
 
   // Handle decay timeout — auto-submit when time runs out
   useEffect(() => {
@@ -134,44 +135,43 @@ export function CoopGame({
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-end round when both have archived
+  // Auto-end round when all players have archived
   useEffect(() => {
-    if (!hasArchived || !partnerArchived || roundEndedRef.current) return;
+    if (!hasArchived || !allPartnersArchived || roundEndedRef.current) return;
     roundEndedRef.current = true;
 
-    const partnerAction = roundActions?.find(
-      (a: { action: string; clerkId: string; data?: string }) => a.action === "archive" && a.clerkId !== user?.id
-    );
-    const partnerScore = partnerAction?.data
-      ? parseInt(partnerAction.data, 10) || 0
-      : 0;
+    // Sum all players' scores for the combined round score
+    let combined = roundScore;
+    if (roundActions) {
+      for (const partner of partners) {
+        const action = roundActions.find(
+          (a: { action: string; clerkId: string; data?: string }) => a.action === "archive" && a.clerkId === partner.clerkId
+        );
+        combined += action?.data ? parseInt(action.data, 10) || 0 : 0;
+      }
+    }
 
-    const combined = roundScore + partnerScore;
     endRound({
       roomId,
-      hostScoreAdd: 0,
-      guestScoreAdd: 0,
       sharedScoreAdd: combined,
     });
-  }, [hasArchived, partnerArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasArchived, allPartnersArchived]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safety net: if we archived but partner hasn't after 10s, host force-advances
+  // Safety net: if we archived but partners haven't after 10s, host force-advances
   useEffect(() => {
-    if (!hasArchived || partnerArchived || !isHost) return;
+    if (!hasArchived || allPartnersArchived || !isHost) return;
     safetyTimerRef.current = setTimeout(() => {
       if (roundEndedRef.current) return;
       roundEndedRef.current = true;
       endRound({
         roomId,
-        hostScoreAdd: 0,
-        guestScoreAdd: 0,
         sharedScoreAdd: roundScore,
       });
     }, 10000);
     return () => {
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     };
-  }, [hasArchived, partnerArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasArchived, allPartnersArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive partner selections from synced data
   const partnerSelections = useMemo(() => {
@@ -276,9 +276,8 @@ export function CoopGame({
 
       {/* Partner status */}
       <OpponentStatus
-        name={partnerName}
-        avatarUrl={partnerAvatar}
-        hasArchived={partnerArchived}
+        otherPlayers={partners}
+        archivedPlayerIds={archivedPlayerIds}
         mode="coop"
       />
 
@@ -308,7 +307,7 @@ export function CoopGame({
           {/* Ping system */}
           <div className="border border-white/5 bg-surface/50 p-2">
             <p className="font-mono text-[10px] text-text-ghost uppercase tracking-wider mb-1">
-              Ping Partner
+              Ping Partners
             </p>
             <PingSystem roomId={roomId} partnerPings={partnerPings} />
           </div>
@@ -320,9 +319,9 @@ export function CoopGame({
               className="text-center font-mono text-sm text-archive"
             >
               Your score: +{roundScore}
-              {partnerArchived
+              {allPartnersArchived
                 ? " — Waiting for round results..."
-                : " — Waiting for partner..."}
+                : ` — Waiting for ${partners.length - archivedPlayerIds.length} partner(s)...`}
             </motion.div>
           )}
         </div>

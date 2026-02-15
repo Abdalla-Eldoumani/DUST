@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
@@ -9,6 +9,7 @@ import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
+import type { PlayerInfo } from "@/app/multiplayer/[code]/page";
 
 interface RoundResultsProps {
   roomId: Id<"multiplayerRooms">;
@@ -16,10 +17,7 @@ interface RoundResultsProps {
   maxRounds: number;
   mode: "race" | "coop";
   isHost: boolean;
-  hostUsername: string;
-  guestUsername: string;
-  hostScore: number;
-  guestScore: number;
+  players: PlayerInfo[];
   sharedScore?: number;
 }
 
@@ -29,10 +27,7 @@ export function RoundResults({
   maxRounds,
   mode,
   isHost,
-  hostUsername,
-  guestUsername,
-  hostScore,
-  guestScore,
+  players,
   sharedScore,
 }: RoundResultsProps) {
   const nextRound = useMutation(api.multiplayer.nextRound);
@@ -40,6 +35,14 @@ export function RoundResults({
   const [advancing, setAdvancing] = useState(false);
 
   const isLastRound = currentRound >= maxRounds;
+
+  // Sort players by score for race mode
+  const rankedPlayers = useMemo(
+    () => [...players].sort((a, b) => b.score - a.score),
+    [players]
+  );
+
+  const leader = rankedPlayers[0];
 
   // Auto-transition to match results after the final round (host triggers it)
   useEffect(() => {
@@ -63,8 +66,6 @@ export function RoundResults({
       const content = getRandomCachedPage([], Math.min(3 + currentRound, 8));
       await nextRound({
         roomId,
-        hostScoreAdd: 0,
-        guestScoreAdd: 0,
         contentId: content.id,
       });
     } catch (err) {
@@ -79,36 +80,31 @@ export function RoundResults({
         <div className="p-8 space-y-6 text-center">
           {mode === "race" ? (
             <>
-              {/* Race scores */}
-              <div className="flex items-center justify-center gap-8">
-                <div className="text-center">
-                  <p className="font-mono text-xs text-text-ghost uppercase mb-1">{hostUsername}</p>
-                  <GlowText
-                    as="p"
-                    color={hostScore >= guestScore ? "green" : "amber"}
-                    intensity="medium"
-                    className="font-mono text-3xl font-bold"
-                  >
-                    {hostScore}
-                  </GlowText>
-                </div>
-                <span className="font-mono text-text-ghost">vs</span>
-                <div className="text-center">
-                  <p className="font-mono text-xs text-text-ghost uppercase mb-1">{guestUsername}</p>
-                  <GlowText
-                    as="p"
-                    color={guestScore >= hostScore ? "green" : "amber"}
-                    intensity="medium"
-                    className="font-mono text-3xl font-bold"
-                  >
-                    {guestScore}
-                  </GlowText>
-                </div>
+              {/* Race scores — ranked list */}
+              <div className="space-y-3">
+                {rankedPlayers.map((player, idx) => (
+                  <div key={player.clerkId} className="flex items-center justify-center gap-4">
+                    <span className="font-mono text-xs text-text-ghost w-6 text-right">
+                      #{idx + 1}
+                    </span>
+                    <span className="font-mono text-sm text-text-secondary min-w-[100px] text-left">
+                      {player.username}
+                    </span>
+                    <GlowText
+                      as="span"
+                      color={idx === 0 ? "green" : "amber"}
+                      intensity="medium"
+                      className="font-mono text-2xl font-bold min-w-[80px]"
+                    >
+                      {player.score}
+                    </GlowText>
+                  </div>
+                ))}
               </div>
 
-              {hostScore !== guestScore && (
+              {rankedPlayers.length >= 2 && rankedPlayers[0].score !== rankedPlayers[1].score && (
                 <p className="font-mono text-sm text-archive">
-                  {hostScore > guestScore ? hostUsername : guestUsername} leads!
+                  {leader.username} leads!
                 </p>
               )}
             </>
@@ -157,4 +153,3 @@ export function RoundResults({
     </div>
   );
 }
-
