@@ -234,7 +234,7 @@ export function CoopGame({
   }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction]);
 
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top bar */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-4">

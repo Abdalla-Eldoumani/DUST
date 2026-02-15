@@ -184,7 +184,7 @@ export function RaceGame({
   }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction]);
 
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top bar */}
       <div className="flex items-center justify-between px-2">
         <GlowText as="span" color="cyan" intensity="low" className="font-mono text-sm">

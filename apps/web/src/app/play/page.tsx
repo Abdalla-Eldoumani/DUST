@@ -338,7 +338,7 @@ export default function PlayPage() {
 
   return (
     <motion.div
-      className="relative flex min-h-svh flex-col"
+      className="relative flex h-svh flex-col overflow-hidden"
       animate={
         screenShake
           ? {

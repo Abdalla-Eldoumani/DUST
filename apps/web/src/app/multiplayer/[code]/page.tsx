@@ -175,11 +175,11 @@ export default function MultiplayerRoomPage({
 
   // Render based on room status
   return (
-    <div className="relative min-h-svh bg-void">
+    <div className={`relative bg-void ${room.status === "playing" ? "h-svh overflow-hidden" : "min-h-svh"}`}>
       {room.status !== "playing" && <ParticleField particleCount={30} />}
       {room.status !== "playing" && <ScanlineOverlay />}
 
-      <div className="relative z-10 mx-auto max-w-5xl px-4 py-4 min-h-svh flex flex-col">
+      <div className={`relative z-10 mx-auto max-w-5xl px-4 py-4 flex flex-col ${room.status === "playing" ? "h-full" : "min-h-svh"}`}>
         {/* Header (only in non-playing states) */}
         {room.status !== "playing" && (
           <div className="mb-4">
@@ -194,7 +194,7 @@ export default function MultiplayerRoomPage({
         )}
 
         {/* Room content */}
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           {showOpponentLeftNotice && room.status !== "finished" && (
             <div className="mb-3 border border-decay/40 bg-decay/10 px-3 py-2">
               <p className="font-mono text-xs uppercase tracking-wider text-decay">
