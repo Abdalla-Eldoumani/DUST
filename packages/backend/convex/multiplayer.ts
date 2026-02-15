@@ -91,7 +91,9 @@ export const joinRoom = mutation({
 
     // Allow joining when waiting (no guest yet) or ready (replacing previous guest)
     if (room.status !== "waiting" && room.status !== "ready") {
-      throw new Error("Room is no longer accepting players");
+      throw new Error(
+        `Room is no longer accepting players (current status: ${room.status})`
+      );
     }
 
     await ctx.db.patch(room._id, {
