@@ -30,7 +30,7 @@ export function TerminalPanel({
   return (
     <div
       className={cn(
-        "border overflow-hidden flex flex-col",
+        "border overflow-x-hidden",
         isTransparent ? "bg-transparent" : "bg-surface/80 backdrop-blur-sm",
         glowBorders[glowColor],
         className
@@ -58,7 +58,7 @@ export function TerminalPanel({
       )}
 
       {/* Content */}
-      <div className={cn("min-h-0 flex-1 overflow-y-auto", isCompact ? "p-3" : "p-4")}>{children}</div>
+      <div className={cn(isCompact ? "p-3" : "p-4")}>{children}</div>
     </div>
   );
 }

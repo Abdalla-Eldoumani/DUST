@@ -68,9 +68,9 @@ export function ToolPanel({
       title="ANALYSIS TOOLS"
       variant="compact"
       glowColor="cyan"
-      className={cn("h-full", className)}
+      className={className}
     >
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-col">
         {/* Tool buttons */}
         <div className="space-y-2">
           {TOOLS.map(({ id, label, hint, icon: Icon }) => (
