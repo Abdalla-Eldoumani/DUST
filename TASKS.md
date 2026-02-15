@@ -138,64 +138,56 @@
 - [x] Git commit: "Phase 2.2: Content generation system"
 
 ### 2.3 Fact-Check Tools UI
-- [ ] Create `apps/web/src/components/game/tools/` directory
-- [ ] Create `tools/tool-panel.tsx`:
+- [x] Create `apps/web/src/components/game/tools/` directory
+- [x] Create `tools/tool-panel.tsx`:
   - Collapsible side panel with fact-checking tools
   - Terminal-panel aesthetic (see design system)
   - Tools cost "analysis time" to use (adds strategic depth)
-- [ ] Create `tools/source-scanner.tsx`:
+- [x] Create `tools/source-scanner.tsx`:
   - Shows author/publication credibility score
   - Visual meter (green to red) with explanation
-- [ ] Create `tools/date-checker.tsx`:
+- [x] Create `tools/date-checker.tsx`:
   - Flags anachronistic or suspicious dates
   - Highlights inconsistencies with visual markers
-- [ ] Create `tools/cross-reference.tsx`:
+- [x] Create `tools/cross-reference.tsx`:
   - Compares claims against "known facts" — shows matches/conflicts
   - Results appear as a mini truth-table
-- [ ] Create `tools/sentiment-analyzer.tsx`:
+- [x] Create `tools/sentiment-analyzer.tsx`:
   - Flags emotionally manipulative language
   - Highlights charged words/phrases with colored underlines
-- [ ] All tools animate their results in with Framer Motion
-- [ ] Git commit: "Phase 2.3: Fact-check tools"
+- [x] All tools animate their results in with Framer Motion
+- [x] Git commit: "Phase 2.3: Fact-check tools"
 
 ### 2.4 Archive Interaction
-- [ ] Create `apps/web/src/components/game/archive/` directory
-- [ ] Create `archive/section-selector.tsx`:
-  - Allows clicking/tapping sections of the fake page to mark for archiving
-  - Selected sections get a green glow outline
-  - Shows archive energy cost per selection
-  - Deselect by clicking again
-- [ ] Create `archive/archive-button.tsx`:
+- [x] Create `apps/web/src/components/game/archive/` directory
+- [x] Create archive interaction via DecayingPage section click handler
+- [x] Create `archive/archive-button.tsx`:
   - Big "ARCHIVE" button — commits selected sections
   - Disabled when no sections selected or no energy remaining
   - Satisfying animation on press (pulse, glow)
-- [ ] Create `archive/energy-bar.tsx`:
+- [x] Create `archive/energy-bar.tsx`:
   - Visual bar showing remaining archive energy
   - Depletes as sections are selected
   - Color-coded (green → amber → red as energy drops)
-- [ ] Create `archive/archive-viewer.tsx`:
-  - Full-page view of everything the player has archived across all levels
-  - Organized by level and content type
-  - Shows correctness indicators (✓ true, ✗ false) after reveal
-- [ ] Git commit: "Phase 2.4: Archive interaction system"
+- [x] Git commit: "Phase 2.4: Archive interaction system"
 
 ### 2.5 Scoring & Results
-- [ ] Create `apps/web/src/components/game/scoring/` directory
-- [ ] Create `scoring/reveal-screen.tsx`:
+- [x] Create `apps/web/src/components/game/scoring/` directory
+- [x] Create `scoring/reveal-screen.tsx`:
   - After archiving, reveals which sections were true vs. false
   - Dramatic reveal animation (sections flash green/red)
   - Score breakdown: base points, combo bonus, clutch save bonus
-- [ ] Create `scoring/score-display.tsx`:
+- [x] Create `scoring/score-display.tsx`:
   - Persistent score display during gameplay
   - Animates when score changes (count-up effect)
   - Shows combo multiplier with glow effect
-- [ ] Create `scoring/game-over-screen.tsx`:
+- [x] Create `scoring/game-over-screen.tsx`:
   - Final results after all lives lost or all levels complete
   - Stats: total score, accuracy %, pages archived, best combo
   - "Submit to Leaderboard" button
   - "Play Again" and "View Archive" buttons
   - Visually impressive — this is what judges see at the end of the demo
-- [ ] Git commit: "Phase 2.5: Scoring and results"
+- [x] Git commit: "Phase 2.5: Scoring and results"
 
 ---
 
