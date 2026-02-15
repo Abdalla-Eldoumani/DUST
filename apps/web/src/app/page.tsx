@@ -6,7 +6,8 @@ import { GlitchText } from "@/components/ui/glitch-text";
 import { GlowText } from "@/components/ui/glow-text";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
 import { ParticleField } from "@/components/ui/particle-field";
-import { Play, BookOpen, Trophy, Info } from "lucide-react";
+import { Play, BookOpen, Trophy, Info, Users } from "lucide-react";
+import { UserMenu } from "@/components/user-menu";
 
 export default function Home() {
   return (
@@ -14,6 +15,11 @@ export default function Home() {
       {/* Background layers */}
       <ParticleField particleCount={80} />
       <ScanlineOverlay />
+
+      {/* User menu */}
+      <div className="absolute top-4 right-4 z-20">
+        <UserMenu />
+      </div>
 
       {/* Faint grid overlay */}
       <div
@@ -67,16 +73,16 @@ export default function Home() {
           </motion.p>
         </motion.div>
 
-        {/* Play button */}
+        {/* Play buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1, duration: 0.6 }}
-          className="mb-8"
+          className="mb-8 flex gap-4"
         >
           <Link href="/play">
             <motion.div
-              className="group flex items-center gap-3 border border-archive/40 bg-archive/5 px-10 py-4 font-mono text-lg font-bold uppercase tracking-widest text-archive transition-all hover:bg-archive/10 hover:border-archive/60"
+              className="group flex items-center gap-3 border border-archive/40 bg-archive/5 px-8 py-4 font-mono text-lg font-bold uppercase tracking-widest text-archive transition-all hover:bg-archive/10 hover:border-archive/60"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               animate={{
@@ -91,7 +97,27 @@ export default function Home() {
               }}
             >
               <Play className="h-5 w-5" />
-              <span>Play</span>
+              <span>Play Solo</span>
+            </motion.div>
+          </Link>
+          <Link href="/multiplayer">
+            <motion.div
+              className="group flex items-center gap-3 border border-scan/40 bg-scan/5 px-8 py-4 font-mono text-lg font-bold uppercase tracking-widest text-scan transition-all hover:bg-scan/10 hover:border-scan/60"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              animate={{
+                boxShadow: [
+                  "0 0 15px rgba(0,212,255,0.2)",
+                  "0 0 30px rgba(0,212,255,0.4)",
+                  "0 0 15px rgba(0,212,255,0.2)",
+                ],
+              }}
+              transition={{
+                boxShadow: { repeat: Infinity, duration: 2.5 },
+              }}
+            >
+              <Users className="h-5 w-5" />
+              <span>Multiplayer</span>
             </motion.div>
           </Link>
         </motion.div>
