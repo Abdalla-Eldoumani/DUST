@@ -26,11 +26,16 @@ import { RevealScreen } from "@/components/game/scoring/reveal-screen";
 import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
 import { ParticleField } from "@/components/ui/particle-field";
 
-import type { PageContent } from "@/lib/types";
+import type { ArchivedItem, PageContent } from "@/lib/types";
+import { GAME_CONSTANTS } from "@/lib/constants";
 
 export default function PlayPage() {
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
+  const [timeoutReveal, setTimeoutReveal] = useState<{
+    items: ArchivedItem[];
+    roundScore: number;
+  } | null>(null);
   const [screenShake, setScreenShake] = useState(false);
 
   // Level selection state — set when user picks a level from LevelSelector
@@ -92,14 +97,13 @@ export default function PlayPage() {
     }
   }, [Math.round(store.decayProgress * 30)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-archive (or force end) when decay completes
+  // Auto-archive (or force penalty reveal) when decay completes
   useEffect(() => {
     if (decayEngine.isComplete && store.gamePhase === "playing") {
       if (store.selectedSections.length > 0) {
         handleArchive();
       } else {
-        // No sections selected — skip to next page or end game
-        handleNextPage();
+        handleTimeoutWithoutArchive();
       }
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -117,10 +121,37 @@ export default function PlayPage() {
 
   const handleArchive = useCallback(() => {
     decayEngine.pause();
+    setTimeoutReveal(null);
     store.archiveSelected();
   }, [decayEngine, store]);
 
+  const handleTimeoutWithoutArchive = useCallback(() => {
+    decayEngine.pause();
+    if (!store.currentPage) return;
+
+    const timedOutItems: ArchivedItem[] = store.currentPage.sections.map((section) => ({
+      sectionId: section.id,
+      sectionText: section.text,
+      wasCorrect: false,
+      pointsEarned: -GAME_CONSTANTS.CORRECT_ARCHIVE_POINTS,
+      level: store.currentLevel,
+      timestamp: Date.now(),
+    }));
+
+    const roundScore = timedOutItems.reduce((sum, item) => sum + item.pointsEarned, 0);
+
+    useGameStore.setState((state) => ({
+      score: Math.max(0, state.score + roundScore),
+      combo: 0,
+      gamePhase: "revealing",
+    }));
+
+    setTimeoutReveal({ items: timedOutItems, roundScore });
+  }, [decayEngine, store.currentLevel, store.currentPage]);
+
   const handleNextPage = useCallback(() => {
+    setTimeoutReveal(null);
+
     // If playing a selected level, use pre-loaded levelPages
     if (store.levelPages.length > 0) {
       const nextIndex = store.levelPageIndex + 1;
@@ -149,6 +180,7 @@ export default function PlayPage() {
 
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
+    setTimeoutReveal(null);
     setPendingLevelId(null);
     setPendingDifficulty(1);
     store.resetGame();
@@ -232,7 +264,14 @@ export default function PlayPage() {
   // ─── MAIN GAMEPLAY ───
   const page = store.currentPage;
   const FakePageComponent = getFakePageComponent(page.contentType);
-  const latestItems = store.archive.slice(-store.selectedSections.length);
+  const latestItems =
+    store.selectedSections.length > 0
+      ? store.archive.slice(-store.selectedSections.length)
+      : [];
+  const revealItems = timeoutReveal ? timeoutReveal.items : latestItems;
+  const revealRoundScore = timeoutReveal
+    ? timeoutReveal.roundScore
+    : latestItems.reduce((sum, i) => sum + i.pointsEarned, 0);
 
   const isCritical = store.decayProgress >= 0.75;
 
@@ -362,14 +401,15 @@ export default function PlayPage() {
 
       {/* Reveal overlay */}
       <AnimatePresence>
-        {store.gamePhase === "revealing" && latestItems.length > 0 && (
-          <RevealScreen
-            items={latestItems}
-            roundScore={latestItems.reduce((sum, i) => sum + i.pointsEarned, 0)}
-            combo={store.combo}
-            onContinue={handleNextPage}
-          />
-        )}
+        {store.gamePhase === "revealing" &&
+          (timeoutReveal !== null || latestItems.length > 0) && (
+            <RevealScreen
+              items={revealItems}
+              roundScore={revealRoundScore}
+              combo={store.combo}
+              onContinue={handleNextPage}
+            />
+          )}
       </AnimatePresence>
     </motion.div>
   );

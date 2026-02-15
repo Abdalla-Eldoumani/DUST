@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Trophy, RotateCcw, Home } from "lucide-react";
+import { Trophy, RotateCcw, Home, Circle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
@@ -23,6 +23,7 @@ interface MatchResultsProps {
   sharedScore?: number;
   maxRounds: number;
   isHost: boolean;
+  opponentPresent: boolean;
 }
 
 export function MatchResults({
@@ -37,10 +38,30 @@ export function MatchResults({
   sharedScore,
   maxRounds,
   isHost,
+  opponentPresent,
 }: MatchResultsProps) {
   const router = useRouter();
   const submitScore = useMutation(api.leaderboard.submit);
+  const setPresence = useMutation(api.multiplayer.setPresence);
   const [submitted, setSubmitted] = useState(false);
+
+  const opponentName = isHost ? guestUsername : hostUsername;
+
+  // Mark self as present on mount, absent on leave
+  const markAbsent = useCallback(() => {
+    setPresence({ roomId, present: false }).catch(() => { });
+  }, [roomId, setPresence]);
+
+  useEffect(() => {
+    setPresence({ roomId, present: true }).catch(() => { });
+
+    // Handle tab close / navigation
+    window.addEventListener("beforeunload", markAbsent);
+    return () => {
+      window.removeEventListener("beforeunload", markAbsent);
+      markAbsent();
+    };
+  }, [roomId, setPresence, markAbsent]);
 
   // Auto-submit score to leaderboard
   useEffect(() => {
@@ -74,6 +95,11 @@ export function MatchResults({
         : guestScore > hostScore
           ? guestUsername
           : null;
+
+  const handleLeave = (path: string) => {
+    markAbsent();
+    router.push(path);
+  };
 
   return (
     <div className="flex flex-col items-center justify-center py-16">
@@ -149,17 +175,41 @@ export function MatchResults({
             </>
           )}
 
+          {/* Opponent presence indicator */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border ${opponentPresent
+                ? "border-archive/30 bg-archive/5"
+                : "border-white/10 bg-white/5"
+              }`}
+          >
+            <Circle
+              className={`h-2.5 w-2.5 ${opponentPresent
+                  ? "text-archive fill-archive"
+                  : "text-text-ghost fill-text-ghost"
+                }`}
+            />
+            <span className={`font-mono text-xs ${opponentPresent ? "text-archive" : "text-text-ghost"
+              }`}>
+              {opponentPresent
+                ? `${opponentName} is still here`
+                : `${opponentName} has left`}
+            </span>
+          </motion.div>
+
           {/* Actions */}
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => router.push("/multiplayer")}
+              onClick={() => handleLeave("/multiplayer")}
               className="inline-flex items-center gap-2 px-6 py-3 font-mono text-sm uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
             >
               <RotateCcw className="h-4 w-4" />
               Rematch
             </button>
             <button
-              onClick={() => router.push("/")}
+              onClick={() => handleLeave("/")}
               className="inline-flex items-center gap-2 px-6 py-3 font-mono text-sm uppercase tracking-wider bg-white/5 text-text-secondary border border-white/10 hover:bg-white/10 transition-colors"
             >
               <Home className="h-4 w-4" />
@@ -171,3 +221,4 @@ export function MatchResults({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
@@ -36,7 +36,25 @@ export function RoundResults({
   sharedScore,
 }: RoundResultsProps) {
   const nextRound = useMutation(api.multiplayer.nextRound);
+  const finishGame = useMutation(api.multiplayer.finishGame);
   const [advancing, setAdvancing] = useState(false);
+
+  const isLastRound = currentRound >= maxRounds;
+
+  // Auto-transition to match results after the final round (host triggers it)
+  useEffect(() => {
+    if (!isLastRound || !isHost) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await finishGame({ roomId });
+      } catch {
+        // If it fails, the room may have already been transitioned
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [isLastRound, isHost, roomId, finishGame]);
 
   const handleNextRound = async () => {
     if (!isHost) return;
@@ -54,8 +72,6 @@ export function RoundResults({
       setAdvancing(false);
     }
   };
-
-  const isLastRound = currentRound >= maxRounds;
 
   return (
     <div className="flex flex-col items-center justify-center py-16">
@@ -112,7 +128,13 @@ export function RoundResults({
 
           {/* Next round */}
           {isLastRound ? (
-            <p className="font-mono text-sm text-amber">Final round complete — calculating results...</p>
+            <motion.p
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="font-mono text-sm text-amber"
+            >
+              Final round complete — loading results...
+            </motion.p>
           ) : isHost ? (
             <button
               onClick={handleNextRound}
@@ -135,3 +157,4 @@ export function RoundResults({
     </div>
   );
 }
+
