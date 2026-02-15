@@ -70,7 +70,7 @@ export function ToolPanel({
       glowColor="cyan"
       className={cn("h-full", className)}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto">
         {/* Tool buttons */}
         <div className="space-y-2">
           {TOOLS.map(({ id, label, hint, icon: Icon }) => (

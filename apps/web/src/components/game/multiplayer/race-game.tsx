@@ -214,7 +214,7 @@ export function RaceGame({
         </div>
 
         {/* Tools sidebar */}
-        <div className="flex flex-col gap-3 overflow-y-auto">
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
           <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={archiveEnergy} max={GAME_CONSTANTS.BASE_ARCHIVE_ENERGY} />
           <ArchiveButton

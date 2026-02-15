@@ -409,7 +409,7 @@ export default function PlayPage() {
 
         {/* Right panel — 30-35% */}
         <div className="flex w-[340px] shrink-0 flex-col border-l border-white/5 bg-surface/20">
-          <div className="flex flex-1 flex-col gap-4 p-3">
+          <div className="flex flex-1 flex-col gap-4 p-3 min-h-0 overflow-y-auto">
             {/* Tools */}
             <ToolPanel
               factCheckData={page.factCheckData}

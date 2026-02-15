@@ -270,7 +270,7 @@ export function CoopGame({
         </div>
 
         {/* Tools sidebar */}
-        <div className="flex flex-col gap-3 overflow-y-auto">
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
           <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={localEnergy} max={10} />
           <ArchiveButton
