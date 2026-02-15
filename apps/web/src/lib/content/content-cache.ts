@@ -835,6 +835,22 @@ export const CACHED_PAGES: PageContent[] = [
 ];
 
 /**
+ * Get content by exact ID. Searches cached pages and demo content.
+ */
+export function getContentById(id: string): PageContent | undefined {
+  const cached = CACHED_PAGES.find((p) => p.id === id);
+  if (cached) return cached;
+
+  // Lazy import to avoid circular — demo content is small
+  try {
+    const { DEMO_PAGES } = require("./demo-content");
+    return (DEMO_PAGES as PageContent[]).find((p: PageContent) => p.id === id);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Get cached page content filtered by difficulty and content type.
  */
 export function getCachedPage(
