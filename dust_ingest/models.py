@@ -136,7 +136,7 @@ class PipelineConfig(BaseModel):
     apify_timeout_secs: int = 120
     llm_api_key: str
     llm_base_url: str = "https://api.deepinfra.com/v1/openai"
-    llm_model: str = "moonshotai/Kimi-K2.5"
+    llm_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
     convex_url: str  # e.g. "https://hushed-fennec-813.convex.cloud"
     concurrency: int = 3
     retries: int = 2
