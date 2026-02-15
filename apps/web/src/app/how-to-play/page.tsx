@@ -128,11 +128,10 @@ function LifelinesDemo() {
             onClick={() =>
               setActiveLifeline(activeLifeline === l.id ? null : l.id)
             }
-            className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
-              activeLifeline === l.id
-                ? l.color
-                : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
-            }`}
+            className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${activeLifeline === l.id
+              ? l.color
+              : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
+              }`}
           >
             {l.label}
           </button>
@@ -145,9 +144,8 @@ function LifelinesDemo() {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className={`border p-2 font-mono text-xs ${
-              lifelines.find((l) => l.id === activeLifeline)?.color
-            }`}
+            className={`border p-2 font-mono text-xs ${lifelines.find((l) => l.id === activeLifeline)?.color
+              }`}
           >
             {lifelines.find((l) => l.id === activeLifeline)?.result}
           </motion.div>
@@ -181,11 +179,10 @@ function ArchiveDemo() {
             else next.add(i);
             setSelected(next);
           }}
-          className={`w-full text-left p-2 border font-serif text-xs leading-relaxed transition-all ${
-            selected.has(i)
-              ? "bg-archive/5 border-archive/30 text-text-primary"
-              : "bg-elevated/20 border-white/5 text-text-secondary hover:border-white/15"
-          }`}
+          className={`w-full text-left p-2 border font-serif text-xs leading-relaxed transition-all ${selected.has(i)
+            ? "bg-archive/5 border-archive/30 text-text-primary"
+            : "bg-elevated/20 border-white/5 text-text-secondary hover:border-white/15"
+            }`}
         >
           {s.text}
           {selected.has(i) && (
@@ -224,11 +221,10 @@ function ScoringDemo() {
           {results.map((r, i) => (
             <div
               key={i}
-              className={`flex justify-between items-center p-2 border font-mono text-xs ${
-                r.correct
-                  ? "bg-archive/5 border-archive/30 text-archive"
-                  : "bg-decay/5 border-decay/30 text-decay"
-              }`}
+              className={`flex justify-between items-center p-2 border font-mono text-xs ${r.correct
+                ? "bg-archive/5 border-archive/30 text-archive"
+                : "bg-decay/5 border-decay/30 text-decay"
+                }`}
             >
               <span>{r.correct ? "TRUE" : "FALSE"}: {r.text}</span>
               <span className="font-bold">{r.points > 0 ? "+" : ""}{r.points}</span>
@@ -257,21 +253,19 @@ function MultiplayerDemo() {
       <div className="grid grid-cols-2 gap-1.5">
         <button
           onClick={() => setMode(mode === "race" ? null : "race")}
-          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
-            mode === "race"
-              ? "bg-amber/10 border-amber/35 text-amber"
-              : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
-          }`}
+          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${mode === "race"
+            ? "bg-amber/10 border-amber/35 text-amber"
+            : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
+            }`}
         >
           Race
         </button>
         <button
           onClick={() => setMode(mode === "coop" ? null : "coop")}
-          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
-            mode === "coop"
-              ? "bg-archive/10 border-archive/35 text-archive"
-              : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
-          }`}
+          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${mode === "coop"
+            ? "bg-archive/10 border-archive/35 text-archive"
+            : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
+            }`}
         >
           Co-op
         </button>
@@ -283,15 +277,14 @@ function MultiplayerDemo() {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className={`border p-2 font-mono text-xs ${
-              mode === "race"
-                ? "border-amber/20 bg-amber/5 text-amber"
-                : "border-archive/20 bg-archive/5 text-archive"
-            }`}
+            className={`border p-2 font-mono text-xs ${mode === "race"
+              ? "border-amber/20 bg-amber/5 text-amber"
+              : "border-archive/20 bg-archive/5 text-archive"
+              }`}
           >
             {mode === "race"
-              ? "Compete head-to-head — first to correctly archive gets a speed bonus. Up to 5 players."
-              : "Work together — shared energy pool, combined score. Coordinate to cover more ground."}
+              ? "Compete head-to-head. Up to 5 players."
+              : "Work together with a combined score, and more time pressure. Coordinate to cover more ground."}
           </motion.div>
         )}
       </AnimatePresence>
@@ -346,13 +339,12 @@ export default function HowToPlayPage() {
             <button
               key={i}
               onClick={() => setStep(i)}
-              className={`h-2 rounded-full transition-all ${
-                i === step
-                  ? "w-8 bg-scan"
-                  : i < step
-                    ? "w-2 bg-archive/60"
-                    : "w-2 bg-white/20"
-              }`}
+              className={`h-2 rounded-full transition-all ${i === step
+                ? "w-8 bg-scan"
+                : i < step
+                  ? "w-2 bg-archive/60"
+                  : "w-2 bg-white/20"
+                }`}
             />
           ))}
           <span className="ml-auto font-mono text-xs text-text-ghost">
@@ -377,13 +369,12 @@ export default function HowToPlayPage() {
               <div className="space-y-4">
                 <div className="flex gap-3">
                   <current.icon
-                    className={`h-5 w-5 shrink-0 mt-0.5 ${
-                      current.color === "cyan"
-                        ? "text-scan"
-                        : current.color === "amber"
-                          ? "text-amber"
-                          : "text-archive"
-                    }`}
+                    className={`h-5 w-5 shrink-0 mt-0.5 ${current.color === "cyan"
+                      ? "text-scan"
+                      : current.color === "amber"
+                        ? "text-amber"
+                        : "text-archive"
+                      }`}
                   />
                   <div>
                     <p className="font-sans text-sm text-text-secondary leading-relaxed">
