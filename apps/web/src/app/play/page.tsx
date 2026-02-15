@@ -299,12 +299,15 @@ export default function PlayPage() {
 
   // ─── GAME OVER ───
   if (store.gamePhase === "gameover" && store.lastGameResult) {
+    const gameResult = store.lastGameResult;
     return (
       <GameOverScreen
-        result={store.lastGameResult}
+        result={gameResult}
         onPlayAgain={handlePlayAgain}
         onGoHome={() => (window.location.href = "/")}
-        onViewLeaderboard={() => router.push("/leaderboard?from=postgame")}
+        onViewLeaderboard={() =>
+          router.push(`/leaderboard?from=postgame&mode=solo&level=${gameResult.level}`)
+        }
       />
     );
   }
