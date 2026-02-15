@@ -54,7 +54,7 @@ The `index.css` file must contain:
 
 ## middleware.ts
 
-Clerk auth middleware. Keep it minimal:
-- Protect: `/dashboard`, leaderboard submit actions
-- Public: `/`, `/play`, `/how-to-play`, `/about`, `/leaderboard` (read-only), `/api/generate-content`
-- The game must be playable without login
+Clerk auth middleware. Auth is required for all non-public routes:
+- Public: `/`, `/sign-in`, `/sign-up`, `/about`, `/how-to-play`, `/api/generate-content`
+- Protected (requires auth): `/play`, `/dashboard`, `/leaderboard`, `/multiplayer`, and all other routes
+- Unauthenticated users are redirected to `/sign-in`

@@ -7,7 +7,7 @@
 **`gameSessions`**
 ```typescript
 {
-  userId: v.optional(v.string()),    // Clerk user ID (null for guests)
+  userId: v.string(),                // Clerk user ID (required)
   score: v.number(),
   level: v.number(),
   combo: v.number(),
@@ -23,21 +23,23 @@
 **`leaderboard`**
 ```typescript
 {
-  userId: v.string(),                // Clerk user ID
+  userId: v.id("users"),             // Reference to users table
+  clerkId: v.string(),               // Clerk user ID
   username: v.string(),              // Display name
+  avatarUrl: v.optional(v.string()), // User avatar URL from Clerk
   score: v.number(),
   accuracy: v.number(),
   level: v.number(),
   pagesCompleted: v.number(),
   achievedAt: v.number(),            // Unix timestamp
 }
-// Index: by_score (descending), by_userId
+// Index: by_score (descending), by_userId, by_clerkId
 ```
 
 **`archives`**
 ```typescript
 {
-  userId: v.optional(v.string()),
+  userId: v.string(),                // Clerk user ID (required)
   sessionId: v.id("gameSessions"),
   items: v.array(v.object({
     sectionText: v.string(),
@@ -64,6 +66,54 @@
 // Index: by_contentType_difficulty, by_isDemo
 ```
 
+**`users`**
+```typescript
+{
+  clerkId: v.string(),               // Clerk user ID
+  username: v.string(),              // Display name
+  avatarUrl: v.optional(v.string()), // Profile avatar URL
+  createdAt: v.number(),             // Unix timestamp
+}
+// Index: by_clerkId
+```
+
+**`multiplayerRooms`**
+```typescript
+{
+  code: v.string(),                  // Room join code
+  hostId: v.string(),                // Clerk user ID of host
+  status: v.union(v.literal("waiting"), v.literal("playing"), v.literal("finished")),
+  players: v.array(v.object({
+    clerkId: v.string(),
+    username: v.string(),
+    avatarUrl: v.optional(v.string()),
+    score: v.number(),
+    isReady: v.boolean(),
+  })),
+  settings: v.object({
+    maxPlayers: v.number(),
+    rounds: v.number(),
+    decaySpeed: v.number(),
+  }),
+  currentRound: v.number(),
+  createdAt: v.number(),
+}
+// Index: by_code, by_hostId, by_status
+```
+
+**`multiplayerActions`**
+```typescript
+{
+  roomId: v.id("multiplayerRooms"),  // Reference to the room
+  clerkId: v.string(),               // Player who performed the action
+  action: v.string(),                // Action type (archive, skip, etc.)
+  data: v.optional(v.string()),      // JSON stringified action data
+  round: v.number(),
+  timestamp: v.number(),
+}
+// Index: by_roomId, by_clerkId
+```
+
 ## Function Specifications
 
 ### gameSessions.ts
@@ -73,9 +123,10 @@
 export const create = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity(); // may be null (guest)
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Must be logged in to play");
     return ctx.db.insert("gameSessions", {
-      userId: identity?.subject ?? undefined,
+      userId: identity.subject,
       score: 0, level: 1, combo: 0,
       status: "active", pagesCompleted: 0, accuracy: 0,
       startedAt: Date.now(),
@@ -171,8 +222,12 @@ export default {
 
 Before marking backend tasks complete:
 - [ ] `npx convex dev` runs without errors
-- [ ] Can create and query game sessions
+- [ ] Can create and query game sessions (requires auth)
 - [ ] Leaderboard sorts correctly by score (descending)
+- [ ] Leaderboard entries include userId, clerkId, and avatarUrl fields
 - [ ] Cached content can be seeded and retrieved
-- [ ] Auth works for protected mutations (submit score)
-- [ ] Unauthed users can still create sessions and play
+- [ ] Auth works for all mutations (create session, submit score, archive)
+- [ ] Unauthenticated requests are rejected with appropriate errors
+- [ ] Users table syncs correctly with Clerk
+- [ ] Multiplayer rooms can be created, joined, and queried
+- [ ] Multiplayer actions are recorded and queryable by room
