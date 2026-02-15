@@ -7,7 +7,7 @@ export default function PlayLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-svh overflow-hidden bg-void">
+    <div className="relative min-h-svh overflow-x-hidden bg-void">
       <ScanlineOverlay />
       <GameErrorBoundary>{children}</GameErrorBoundary>
     </div>

@@ -63,22 +63,31 @@ export function LevelSelector({
         .sort((a, b) => a.difficulty - b.difficulty)
     : [];
 
+  const handleQuickPlay = () => {
+    if (sortedLevels.length > 0) {
+      const random = sortedLevels[Math.floor(Math.random() * sortedLevels.length)]!;
+      onSelectLevel(random.levelId, random.difficulty);
+      return;
+    }
+    onQuickPlay();
+  };
+
   return (
     <div className="flex min-h-svh flex-col items-center justify-center relative">
       <ParticleField particleCount={40} />
 
-      <div className="relative z-10 w-full max-w-2xl px-4">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-8 md:px-8 md:py-12">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="mb-10 text-center md:mb-12">
           <GlowText
             as="h1"
             color="green"
             intensity="high"
-            className="font-mono text-4xl font-bold mb-2"
+            className="font-mono text-5xl font-bold tracking-[0.12em] md:text-7xl"
           >
             SELECT LEVEL
           </GlowText>
-          <p className="font-serif text-text-secondary text-sm">
+          <p className="mt-3 font-serif text-base text-text-secondary md:text-xl">
             Choose a difficulty level. Higher levels have faster decay and
             subtler misinformation.
           </p>
@@ -108,13 +117,13 @@ export function LevelSelector({
 
         {/* No levels found — fallback */}
         {levels && levels.length === 0 && (
-          <div className="text-center py-8 mb-6">
-            <p className="font-mono text-sm text-text-ghost mb-4">
+          <div className="mb-8 py-10 text-center">
+            <p className="mb-6 font-mono text-2xl text-text-ghost/80">
               No levels found in database. Using cached content.
             </p>
             <button
-              onClick={onQuickPlay}
-              className="px-8 py-3 font-mono text-sm uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
+              onClick={handleQuickPlay}
+              className="min-w-[220px] px-10 py-4 font-mono text-lg uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
             >
               Quick Play
             </button>
@@ -173,26 +182,26 @@ export function LevelSelector({
         )}
 
         {/* Bottom actions */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-6">
           {sortedLevels.length > 0 && (
             <button
-              onClick={onQuickPlay}
-              className="px-6 py-2 font-mono text-xs uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
+              onClick={handleQuickPlay}
+              className="min-w-[260px] px-10 py-4 font-mono text-lg uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
             >
               Quick Play (Random)
             </button>
           )}
           <button
             onClick={onDemoMode}
-            className="px-6 py-2 font-mono text-xs uppercase tracking-wider bg-white/5 text-text-secondary border border-white/10 hover:bg-white/10 transition-colors"
+            className="min-w-[220px] px-10 py-4 font-mono text-lg uppercase tracking-wider bg-white/5 text-text-secondary border border-white/10 hover:bg-white/10 transition-colors"
           >
             Demo Mode
           </button>
           <Link
             href="/"
-            className="flex items-center gap-1.5 mt-2 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
+            className="mt-2 inline-flex items-center gap-2 text-base text-text-ghost hover:text-text-secondary transition-colors font-sans md:text-xl"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
             Back to Menu
           </Link>
         </div>
@@ -200,4 +209,3 @@ export function LevelSelector({
     </div>
   );
 }
-

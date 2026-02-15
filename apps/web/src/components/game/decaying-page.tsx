@@ -13,6 +13,7 @@ interface DecayingPageProps {
   content: PageContent;
   decayProgress: number;
   selectedSections: string[];
+  partnerSelections?: string[];
   onSelectSection?: (sectionId: string) => void;
 }
 
@@ -24,6 +25,7 @@ export const DecayingPage = memo(function DecayingPage({
   content,
   decayProgress,
   selectedSections,
+  partnerSelections,
   onSelectSection,
 }: DecayingPageProps) {
   const colorDecay = useColorDecay(decayProgress);
@@ -74,6 +76,7 @@ export const DecayingPage = memo(function DecayingPage({
             section={section}
             decayProgress={decayProgress}
             isSelected={selectedSections.includes(section.id)}
+            isPartnerSelected={partnerSelections?.includes(section.id) ?? false}
             onSelect={onSelectSection}
             elementIndex={index + 1}
           />
@@ -89,6 +92,7 @@ interface DecayingSectionProps {
   section: PageSection;
   decayProgress: number;
   isSelected: boolean;
+  isPartnerSelected?: boolean;
   onSelect?: (sectionId: string) => void;
   elementIndex: number;
   isTitle?: boolean;
@@ -98,6 +102,7 @@ const DecayingSection = memo(function DecayingSection({
   section,
   decayProgress,
   isSelected,
+  isPartnerSelected,
   onSelect,
   elementIndex,
   isTitle,
@@ -110,7 +115,8 @@ const DecayingSection = memo(function DecayingSection({
       className={cn(
         "relative transition-colors",
         isClickable && "cursor-pointer hover:bg-white/[0.02] -mx-3 px-3 py-1",
-        isSelected && "bg-archive/5 border-l-2 border-archive -mx-3 px-3 py-1"
+        isSelected && "bg-archive/5 border-l-2 border-archive -mx-3 px-3 py-1",
+        isPartnerSelected && !isSelected && "bg-scan/5 border-l-2 border-scan -mx-3 px-3 py-1"
       )}
       style={{
         transform: layoutDecay.transform,
@@ -122,6 +128,9 @@ const DecayingSection = memo(function DecayingSection({
     >
       {isSelected && (
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-archive shadow-[0_0_8px_rgba(0,255,136,0.5)]" />
+      )}
+      {isPartnerSelected && !isSelected && (
+        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-scan shadow-[0_0_8px_rgba(0,212,255,0.5)]" />
       )}
 
       {section.imageSrc ? (

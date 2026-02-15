@@ -3,7 +3,7 @@
 import { ArrowLeft, Trophy } from "lucide-react";
 import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
@@ -14,9 +14,11 @@ import { LeaderboardTable } from "@/components/leaderboard/leaderboard-table";
 
 export default function LeaderboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const entries = useQuery(api.leaderboard.getTop, { limit: 50 });
   const myRank = useQuery(api.leaderboard.getMyRank);
   const { user } = useUser();
+  const fromPostGame = searchParams.get("from") === "postgame";
 
   return (
     <div className="relative min-h-svh bg-void">
@@ -29,6 +31,10 @@ export default function LeaderboardPage() {
           <button
             type="button"
             onClick={() => {
+              if (fromPostGame) {
+                router.push("/play");
+                return;
+              }
               if (window.history.length > 1) {
                 router.back();
               } else {

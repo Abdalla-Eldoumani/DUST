@@ -92,6 +92,7 @@ export default defineSchema({
     sharedScore: v.optional(v.number()),
     hostPresent: v.optional(v.boolean()),
     guestPresent: v.optional(v.boolean()),
+    rematchRoomCode: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -107,7 +108,8 @@ export default defineSchema({
       v.literal("archive"),
       v.literal("useTools"),
       v.literal("ping"),
-      v.literal("ready")
+      v.literal("ready"),
+      v.literal("select")
     ),
     data: v.optional(v.string()),
     timestamp: v.number(),

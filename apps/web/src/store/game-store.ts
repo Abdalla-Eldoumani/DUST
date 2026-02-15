@@ -9,9 +9,9 @@ import type {
 } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
 
-/** Count false (misinformation) sections — used to set archive energy budget. */
-function countFalseSections(page: PageContent): number {
-  return page.sections.filter((s) => !s.isTrue).length;
+/** Count true sections — used to set archive energy budget. */
+function countTrueSections(page: PageContent): number {
+  return page.sections.filter((s) => s.isTrue).length;
 }
 
 interface GameState {
@@ -100,7 +100,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   startLevelGame: (levelId, difficulty, pages) => {
     if (pages.length === 0) return;
-    const energy = countFalseSections(pages[0]!);
+    const energy = countTrueSections(pages[0]!);
+    const firstPage = pages[0]!;
     set({
       ...initialState,
       gamePhase: "playing",
@@ -110,7 +111,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       gameStartedAt: Date.now(),
       levelPages: pages,
       levelPageIndex: 0,
-      currentPage: pages[0]!,
+      currentPage: firstPage,
       decayProgress: 0,
       selectedSections: [],
       archiveEnergy: energy,
@@ -119,7 +120,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setCurrentPage: (page) => {
-    const energy = countFalseSections(page);
+    const energy = countTrueSections(page);
     set({
       currentPage: page,
       decayProgress: 0,
@@ -147,13 +148,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   deselectSection: (sectionId) => {
-    const { selectedSections, currentPage, archiveEnergy } = get();
+    const { selectedSections, currentPage, archiveEnergy, maxArchiveEnergy } = get();
     const section = currentPage?.sections.find((s) => s.id === sectionId);
     if (!section) return;
 
     set({
       selectedSections: selectedSections.filter((id) => id !== sectionId),
-      archiveEnergy: archiveEnergy + section.archiveCost,
+      archiveEnergy: Math.min(maxArchiveEnergy, archiveEnergy + section.archiveCost),
     });
   },
 
@@ -197,21 +198,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     });
 
-    // Update combo
-    const allCorrect = newItems.every((item) => item.wasCorrect);
+    // Update score/combo deterministically per section.
+    // Multiplier follows COMBO_MULTIPLIER_INCREMENT:
+    // streak 1 => x1.00, streak 2 => x1.25, streak 3 => x1.50, etc.
     const { combo, bestCombo, score, archive } = get();
-    const newCombo = allCorrect ? combo + 1 : 0;
+    let runningCombo = combo;
+    let peakCombo = bestCombo;
+    const scoredItems = newItems.map((item) => {
+      if (!item.wasCorrect) {
+        runningCombo = 0;
+        return item;
+      }
 
-    // Streak scaling is deterministic: streak 1 => x1, streak 2 => x2, etc.
-    const comboMultiplier = allCorrect ? Math.max(newCombo, 1) : 1;
-    const scoredItems = newItems.map((item) =>
-      item.wasCorrect
-        ? {
-            ...item,
-            pointsEarned: Math.round(item.pointsEarned * comboMultiplier),
-          }
-        : item
-    );
+      const comboMultiplier =
+        1 + Math.max(0, runningCombo) * GAME_CONSTANTS.COMBO_MULTIPLIER_INCREMENT;
+      const boostedPoints = Math.round(item.pointsEarned * comboMultiplier);
+
+      runningCombo += 1;
+      peakCombo = Math.max(peakCombo, runningCombo);
+
+      return {
+        ...item,
+        pointsEarned: boostedPoints,
+      };
+    });
     const roundPoints = scoredItems.reduce(
       (sum, item) => sum + item.pointsEarned,
       0
@@ -219,9 +229,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set({
       archive: [...archive, ...scoredItems],
-      score: Math.max(0, score + roundPoints),
-      combo: newCombo,
-      bestCombo: Math.max(bestCombo, newCombo),
+      score: score + roundPoints,
+      combo: runningCombo,
+      bestCombo: peakCombo,
     });
   },
 
@@ -231,8 +241,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const { currentLevel, pagesCompleted, levelPages, levelPageIndex } = get();
     const newLevel = pagesCompleted >= 2 ? currentLevel + 1 : currentLevel;
 
-    // Energy = number of false sections on the new page
-    const energy = countFalseSections(page);
+    // Energy = number of true sections on the new page
+    const energy = countTrueSections(page);
 
     set({
       currentPage: page,
@@ -249,7 +259,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   endGame: () => {
-    const { score, archive, bestCombo, pagesCompleted, gameStartedAt } = get();
+    const { score, archive, bestCombo, pagesCompleted, gameStartedAt, currentPage } = get();
     const correctItems = archive.filter((a) => a.wasCorrect).length;
     const accuracy =
       archive.length > 0
@@ -262,7 +272,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const result: GameResult = {
       totalScore: score,
       accuracy,
-      pagesCompleted,
+      pagesCompleted: Math.max(0, pagesCompleted + (currentPage ? 1 : 0)),
       totalArchived: archive.length,
       bestCombo,
       timePlayed,

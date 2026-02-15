@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
+import { LogOut } from "lucide-react";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
@@ -27,11 +29,15 @@ import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
 import { ParticleField } from "@/components/ui/particle-field";
 
 import type { ArchivedItem, PageContent } from "@/lib/types";
+import { isValidPageContent } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
 
 export default function PlayPage() {
+  const router = useRouter();
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
+  const hasTimedOutRef = useRef(false);
+  const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [timeoutReveal, setTimeoutReveal] = useState<{
     items: ArchivedItem[];
     roundScore: number;
@@ -56,6 +62,7 @@ export default function PlayPage() {
 
   const decayEngine = useDecayEngine({
     duration: store.currentPage?.decayDuration ?? difficulty.decayDuration,
+    curve: difficulty.decayCurve,
     onProgress: store.setDecayProgress,
   });
 
@@ -83,20 +90,52 @@ export default function PlayPage() {
     }
   }, [levelVariants, pendingLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load first page when game starts (quick play / demo mode — no level selected)
+  // Load first page when game starts (demo mode / fallback quick play only)
   useEffect(() => {
     if (store.gamePhase === "loading" && !pendingLevelId) {
-      const page = store.demoMode
-        ? getDemoPage(0)
-        : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
-      usedIdsRef.current.push(page.id);
-      store.setCurrentPage(page);
+      try {
+        const page = store.demoMode
+          ? getDemoPage(0)
+          : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
+        if (isValidPageContent(page)) {
+          usedIdsRef.current.push(page.id);
+          store.setCurrentPage(page);
+        } else {
+          // Fallback to first cached page
+          const fallback = getRandomCachedPage([]);
+          usedIdsRef.current.push(fallback.id);
+          store.setCurrentPage(fallback);
+        }
+      } catch {
+        // Emergency fallback
+        const fallback = getRandomCachedPage([]);
+        usedIdsRef.current.push(fallback.id);
+        store.setCurrentPage(fallback);
+      }
     }
-  }, [store.gamePhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [store.gamePhase, pendingLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Loading timeout: if stuck in "loading" for 5 seconds, force-load fallback.
+  // Never override an in-flight level selection.
+  useEffect(() => {
+    if (store.gamePhase !== "loading" || pendingLevelId) return;
+    const timer = setTimeout(() => {
+      if (
+        useGameStore.getState().gamePhase === "loading" &&
+        !pendingLevelId
+      ) {
+        const fallback = getRandomCachedPage([]);
+        usedIdsRef.current.push(fallback.id);
+        store.setCurrentPage(fallback);
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [store.gamePhase, pendingLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start decay when page is loaded
   useEffect(() => {
     if (store.gamePhase === "playing" && store.currentPage) {
+      hasTimedOutRef.current = false;
       decayEngine.reset();
       decayEngine.start();
     }
@@ -106,18 +145,35 @@ export default function PlayPage() {
   useEffect(() => {
     if (store.decayProgress >= 0.75 && store.decayProgress < 0.78 && store.gamePhase === "playing") {
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), 400);
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+      shakeTimerRef.current = setTimeout(() => setScreenShake(false), 400);
     }
   }, [Math.round(store.decayProgress * 30)]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup shake timer on unmount
+  useEffect(() => {
+    return () => {
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+    };
+  }, []);
+
   // Auto-archive (or force penalty reveal) when decay completes
   useEffect(() => {
-    if (decayEngine.isComplete && store.gamePhase === "playing") {
-      if (store.selectedSections.length > 0) {
-        handleArchive();
-      } else {
-        handleTimeoutWithoutArchive();
-      }
+    if (!decayEngine.isComplete) {
+      hasTimedOutRef.current = false;
+      return;
+    }
+    // Prevent double-fire
+    if (hasTimedOutRef.current) return;
+    // Read fresh state to avoid stale closures
+    const freshState = useGameStore.getState();
+    if (freshState.gamePhase !== "playing") return;
+    hasTimedOutRef.current = true;
+
+    if (freshState.selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      handleTimeoutWithoutArchive();
     }
   }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -146,12 +202,12 @@ export default function PlayPage() {
       sectionId: section.id,
       sectionText: section.text,
       wasCorrect: false,
-      pointsEarned: -GAME_CONSTANTS.CORRECT_ARCHIVE_POINTS,
+      pointsEarned: 0,
       level: store.currentLevel,
       timestamp: Date.now(),
     }));
 
-    const roundScore = timedOutItems.reduce((sum, item) => sum + item.pointsEarned, 0);
+    const roundScore = GAME_CONSTANTS.TIMEOUT_NO_ARCHIVE_PENALTY;
 
     useGameStore.setState((state) => ({
       score: Math.max(0, state.score + roundScore),
@@ -196,10 +252,26 @@ export default function PlayPage() {
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
     setTimeoutReveal(null);
+    const { demoMode, selectedLevelId, selectedDifficulty } = useGameStore.getState();
+
+    if (selectedLevelId) {
+      store.resetGame();
+      store.setGamePhase("loading");
+      setPendingLevelId(selectedLevelId);
+      setPendingDifficulty(selectedDifficulty ?? 1);
+      return;
+    }
+
     setPendingLevelId(null);
     setPendingDifficulty(1);
-    store.resetGame();
+    store.startGame(demoMode);
   }, [store]);
+
+  const handleLeaveGame = useCallback(() => {
+    decayEngine.pause();
+    setTimeoutReveal(null);
+    store.resetGame();
+  }, [decayEngine, store]);
 
   // ─── MENU STATE ───
   if (store.gamePhase === "menu") {
@@ -232,7 +304,7 @@ export default function PlayPage() {
         result={store.lastGameResult}
         onPlayAgain={handlePlayAgain}
         onGoHome={() => (window.location.href = "/")}
-        onViewLeaderboard={() => (window.location.href = "/leaderboard")}
+        onViewLeaderboard={() => router.push("/leaderboard?from=postgame")}
       />
     );
   }
@@ -294,7 +366,7 @@ export default function PlayPage() {
 
   return (
     <motion.div
-      className="flex min-h-svh flex-col relative"
+      className="relative flex h-svh flex-col overflow-hidden"
       animate={
         screenShake
           ? {
@@ -330,16 +402,27 @@ export default function PlayPage() {
           combo={store.combo}
           level={store.currentLevel}
         />
-        <div className="flex-1 max-w-xs ml-6">
-          <DecayTimer
-            progress={store.decayProgress}
-            remaining={decayEngine.remaining}
-          />
+        <div className="ml-6 flex flex-1 items-center justify-end gap-3">
+          {store.gamePhase === "playing" && (
+            <button
+              onClick={handleLeaveGame}
+              className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-decay/40 hover:text-decay"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Leave Game
+            </button>
+          )}
+          <div className="w-full max-w-xs">
+            <DecayTimer
+              progress={store.decayProgress}
+              remaining={decayEngine.remaining}
+            />
+          </div>
         </div>
       </div>
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         {/* Fake page viewport — 65-70% */}
         <div className="flex-1 overflow-y-auto p-4">
           <AnimatePresence mode="wait">
@@ -364,13 +447,14 @@ export default function PlayPage() {
         </div>
 
         {/* Right panel — 30-35% */}
-        <div className="w-[340px] shrink-0 border-l border-white/5 bg-surface/20 flex flex-col overflow-hidden">
-          <div className="p-3 flex-1 min-h-0 flex flex-col gap-4 overflow-y-auto">
+        <div className="flex w-[340px] shrink-0 flex-col border-l border-white/5 bg-surface/20">
+          <div className="flex flex-1 flex-col gap-4 p-3 min-h-0 overflow-y-auto">
             {/* Tools */}
             <ToolPanel
               factCheckData={page.factCheckData}
+              sections={page.sections}
               decayProgress={store.decayProgress}
-              className="flex-1 min-h-[420px]"
+              className="min-h-0 flex-1"
             />
 
             {/* Energy */}

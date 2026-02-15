@@ -30,7 +30,7 @@ export function TerminalPanel({
   return (
     <div
       className={cn(
-        "border overflow-hidden",
+        "border overflow-x-hidden",
         isTransparent ? "bg-transparent" : "bg-surface/80 backdrop-blur-sm",
         glowBorders[glowColor],
         className

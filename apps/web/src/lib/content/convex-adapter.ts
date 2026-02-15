@@ -397,20 +397,18 @@ export function variantToPageContent(
   const { decayDuration } = getDifficulty(difficulty);
   const contentType = inferContentType(url, title);
 
-  // Build factCheckData from fakeMarks
-  const factCheckData: FactCheckData = {
-    sourceCredibility: Math.max(20, 80 - difficulty * 6),
-    dateAccuracy: true,
-    emotionalLanguageScore: Math.min(90, 10 + difficulty * 8),
-    crossReferenceHits: variant.fakeMarks.map((m) => m.explanation),
-    authorHistory: "Source analysis unavailable for this archived page.",
-  };
+  const factCheckData = buildFactCheckData(
+    variant,
+    finalSections,
+    contentType,
+    difficulty
+  );
 
   return {
     id: variant.variantId,
     title,
     contentType,
-    author: "Unknown Author",
+    author: factCheckData._author,
     date: new Date().toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
@@ -421,5 +419,160 @@ export function variantToPageContent(
     factCheckData,
     difficulty,
     decayDuration,
+  };
+}
+
+// ─── Analysis Tool Data Generation ────────────────────────────────────
+
+const EMOTIONAL_WORDS = new Set([
+  "shocking", "outrage", "devastating", "incredible", "alarming",
+  "horrifying", "terrifying", "unbelievable", "bombshell", "explosive",
+  "crisis", "catastrophe", "disaster", "nightmare", "scandal",
+  "heartbreaking", "sickening", "disgusting", "infuriating", "corrupt",
+  "deadly", "panic", "chaos", "urgent", "emergency", "destroy",
+  "slam", "blast", "rip", "savage", "brutal", "insane", "crazy",
+  "wild", "epic", "massive", "enormous", "skyrocket", "plummet",
+  "surge", "crash", "soar", "collapse", "breakthrough", "revolutionary",
+  "unprecedented", "historic", "exclusive", "breaking", "busted",
+  "exposed", "revealed", "secret", "hidden", "banned", "censored",
+]);
+
+const DATE_KEYWORDS = /\b(date|year|years|timeline|century|centuries|ago|period|era|decade|month|annual|founded|established|invented)\b/i;
+
+const AUTHOR_POOL: Record<PageContent["contentType"], string[]> = {
+  news: [
+    "Established news outlet — generally factual but occasionally sensationalizes for engagement.",
+    "Regional news desk with mixed editorial standards. Verify statistics independently.",
+    "Well-known publication, but this reporter has a history of citing unverified sources.",
+    "Wire service with broad sourcing. Individual articles may reflect editorial bias.",
+  ],
+  blog: [
+    "Personal blog with no institutional affiliation. Claims are opinion-heavy.",
+    "Independent journalist — insightful analysis but occasionally presents anecdotes as data.",
+    "Subject-matter enthusiast. Some claims lack peer-reviewed backing.",
+    "Popular blogger who mixes personal experience with cherry-picked statistics.",
+  ],
+  social: [
+    "Anonymous social media account — no verifiable credentials.",
+    "Popular commentary account. Mixes real data with unverified claims for engagement.",
+    "Unverified account with growing following. Sources are rarely linked.",
+    "Pseudonymous account. Some claims cannot be independently verified.",
+  ],
+  wiki: [
+    "Community-edited encyclopedia — generally reliable but check specific statistics.",
+    "Collaborative knowledge base. Most claims are sourced, but some citations are outdated.",
+    "Community-maintained reference. High reliability on common topics, watch for niche inaccuracies.",
+    "Open encyclopedia with editorial review. Subtle errors may persist in lesser-trafficked articles.",
+  ],
+};
+
+/**
+ * Build rich, gameplay-useful FactCheckData by analyzing the variant's
+ * actual content, fakeMarks, sections, and content type.
+ */
+function buildFactCheckData(
+  variant: ConvexVariant,
+  sections: PageSection[],
+  contentType: PageContent["contentType"],
+  difficulty: number
+): FactCheckData & { _author: string } {
+  const fakeMarks = variant.fakeMarks;
+  const fakeSections = sections.filter((s) => !s.isTrue);
+  const trueSections = sections.filter((s) => s.isTrue);
+  const fakeRatio = sections.length > 0 ? fakeSections.length / sections.length : 0;
+
+  // ── Source Credibility ──
+  // Base by content type, then adjust by fake density and difficulty
+  const baseCredibility: Record<PageContent["contentType"], number> = {
+    wiki: 78,
+    news: 65,
+    blog: 48,
+    social: 38,
+  };
+  const credBase = baseCredibility[contentType] ?? 55;
+  const fakePenalty = Math.round(fakeRatio * 25);
+  const difficultyShift = Math.round((difficulty - 5) * 3);
+  // Small deterministic variance from variantId hash
+  const hash = variant.variantId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const jitter = (hash % 11) - 5; // -5 to +5
+  const sourceCredibility = Math.max(15, Math.min(95, credBase - fakePenalty - difficultyShift + jitter));
+
+  // ── Date Accuracy ──
+  // False when any fakeMarks mention date/time-related terms
+  const dateAccuracy = !fakeMarks.some(
+    (m) => DATE_KEYWORDS.test(m.snippet) || DATE_KEYWORDS.test(m.explanation)
+  );
+
+  // ── Emotional Language Score ──
+  // Scan all section text for emotional words
+  const allText = sections.map((s) => s.text).join(" ").toLowerCase();
+  const words = allText.split(/\s+/);
+  let emotionalHits = 0;
+  for (const w of words) {
+    const cleaned = w.replace(/[^a-z]/g, "");
+    if (EMOTIONAL_WORDS.has(cleaned)) emotionalHits++;
+  }
+  const emotionalRatio = words.length > 0 ? emotionalHits / words.length : 0;
+  // Map to 0-100: ~0% emotional words → 5, ~3%+ → 85
+  const rawEmoScore = Math.round(emotionalRatio * 2800);
+  const difficultyBoost = Math.round(difficulty * 2);
+  const emotionalLanguageScore = Math.max(5, Math.min(95, rawEmoScore + difficultyBoost));
+
+  // ── Cross-Reference Hits ──
+  const crossReferenceHits: string[] = [];
+
+  // Add supporting references for true sections (pick up to 2)
+  const trueForHints = trueSections.slice(0, 2);
+  for (const section of trueForHints) {
+    const snippet = section.text.length > 60
+      ? section.text.slice(0, 60).replace(/\s+\S*$/, "") + "…"
+      : section.text;
+    const templates = [
+      `Claim regarding "${snippet}" is consistent with widely cited sources.`,
+      `The statement about "${snippet}" aligns with established records.`,
+      `"${snippet}" — this information is corroborated by multiple references.`,
+    ];
+    crossReferenceHits.push(templates[hash % templates.length]!);
+  }
+
+  // Add contradicting references for fake marks (all of them — these are the clues)
+  for (const mark of fakeMarks) {
+    const explanation = mark.explanation;
+    // Rephrase as a cross-reference finding rather than a raw explanation
+    const templates = [
+      `⚠ ${explanation}`,
+      `Discrepancy noted: ${explanation}`,
+      `Primary sources contradict this claim — ${explanation}`,
+    ];
+    crossReferenceHits.push(templates[(hash + crossReferenceHits.length) % templates.length]!);
+  }
+
+  // If we still have fewer than 3 hits, pad with neutral observations
+  while (crossReferenceHits.length < 3) {
+    crossReferenceHits.push(
+      "Insufficient archived data to cross-reference remaining claims."
+    );
+  }
+
+  // ── Author History ──
+  const pool = AUTHOR_POOL[contentType] ?? AUTHOR_POOL.news;
+  const authorHistory = pool[hash % pool.length]!;
+  // Also pick a display author name
+  const authorNames: Record<PageContent["contentType"], string[]> = {
+    news: ["Associated Wire", "Metro Desk Report", "Staff Correspondent", "Editorial Board"],
+    blog: ["Independent Writer", "Guest Contributor", "Freelance Analyst", "Subject Enthusiast"],
+    social: ["Anonymous User", "Unverified Account", "Community Member", "Online Commentator"],
+    wiki: ["Encyclopedia Contributors", "Community Editors", "Volunteer Authors", "Open Editors"],
+  };
+  const authorPool = authorNames[contentType] ?? authorNames.news;
+  const _author = authorPool[hash % authorPool.length]!;
+
+  return {
+    sourceCredibility,
+    dateAccuracy,
+    emotionalLanguageScore,
+    crossReferenceHits,
+    authorHistory,
+    _author,
   };
 }

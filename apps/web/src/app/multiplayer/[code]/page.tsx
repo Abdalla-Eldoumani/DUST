@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { api } from "@DUST/backend/convex/_generated/api";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
@@ -24,7 +25,32 @@ export default function MultiplayerRoomPage({
 }) {
   const { code } = use(params);
   const { user } = useUser();
+  const router = useRouter();
   const room = useQuery(api.multiplayer.getRoom, { roomCode: code.toUpperCase() });
+  const setPresence = useMutation(api.multiplayer.setPresence);
+  const claimWinByAbandonment = useMutation(api.multiplayer.claimWinByAbandonment);
+  const [leaveCountdown, setLeaveCountdown] = useState<number | null>(null);
+  const claimTriggeredRef = useRef(false);
+
+  // Lock body scroll during gameplay
+  useEffect(() => {
+    if (room?.status === "playing") {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [room?.status]);
+
+  // Redirect to rematch room when it's created
+  useEffect(() => {
+    if (
+      room &&
+      room.status === "finished" &&
+      room.rematchRoomCode &&
+      room.rematchRoomCode !== code.toUpperCase()
+    ) {
+      router.push(`/multiplayer/${room.rematchRoomCode}`);
+    }
+  }, [room?.status, room?.rematchRoomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isHost = useMemo(
     () => room?.hostClerkId === user?.id,
@@ -37,6 +63,71 @@ export default function MultiplayerRoomPage({
   const opponentAvatar = isHost
     ? room?.guestAvatarUrl ?? ""
     : room?.hostAvatarUrl ?? "";
+
+  const opponentPresent = isHost
+    ? room?.guestPresent !== false
+    : room?.hostPresent !== false;
+  const inActiveRound = room?.status === "playing" || room?.status === "roundEnd";
+  const showOpponentLeftNotice = Boolean(
+    room &&
+    inActiveRound &&
+    room.guestClerkId &&
+    !opponentPresent
+  );
+  const shouldRunReconnectCountdown = Boolean(
+    room &&
+    room.mode === "race" &&
+    inActiveRound &&
+    room.guestClerkId &&
+    !opponentPresent
+  );
+
+  // Track presence for active room lifecycle (not only post-game).
+  useEffect(() => {
+    if (!room || !user) return;
+    const roomId = room._id;
+    const markAbsent = () => {
+      setPresence({ roomId, present: false }).catch(() => {});
+    };
+
+    setPresence({ roomId, present: true }).catch(() => {});
+    window.addEventListener("beforeunload", markAbsent);
+    window.addEventListener("pagehide", markAbsent);
+
+    return () => {
+      window.removeEventListener("beforeunload", markAbsent);
+      window.removeEventListener("pagehide", markAbsent);
+      markAbsent();
+    };
+  }, [room?._id, user?.id, setPresence]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reconnect grace period: 10 seconds before default win claim.
+  useEffect(() => {
+    if (!shouldRunReconnectCountdown) {
+      setLeaveCountdown(null);
+      claimTriggeredRef.current = false;
+      return;
+    }
+
+    setLeaveCountdown(10);
+    const interval = setInterval(() => {
+      setLeaveCountdown((prev) => {
+        if (prev === null) return null;
+        return Math.max(prev - 1, 0);
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [shouldRunReconnectCountdown]);
+
+  useEffect(() => {
+    if (!room || !shouldRunReconnectCountdown) return;
+    if (leaveCountdown !== 0 || claimTriggeredRef.current) return;
+    claimTriggeredRef.current = true;
+    claimWinByAbandonment({ roomId: room._id }).catch(() => {
+      claimTriggeredRef.current = false;
+    });
+  }, [leaveCountdown, shouldRunReconnectCountdown, room?._id, claimWinByAbandonment]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Loading
   if (room === undefined) {
@@ -84,11 +175,11 @@ export default function MultiplayerRoomPage({
 
   // Render based on room status
   return (
-    <div className="relative min-h-svh bg-void">
-      <ParticleField particleCount={30} />
-      <ScanlineOverlay />
+    <div className={`relative bg-void ${room.status === "playing" ? "h-svh overflow-hidden" : "min-h-svh"}`}>
+      {room.status !== "playing" && <ParticleField particleCount={30} />}
+      {room.status !== "playing" && <ScanlineOverlay />}
 
-      <div className="relative z-10 mx-auto max-w-5xl px-4 py-4 min-h-svh flex flex-col">
+      <div className={`relative z-10 mx-auto max-w-5xl px-4 py-4 flex flex-col ${room.status === "playing" ? "h-full" : "min-h-svh"}`}>
         {/* Header (only in non-playing states) */}
         {room.status !== "playing" && (
           <div className="mb-4">
@@ -103,7 +194,20 @@ export default function MultiplayerRoomPage({
         )}
 
         {/* Room content */}
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
+          {showOpponentLeftNotice && room.status !== "finished" && (
+            <div className="mb-3 border border-decay/40 bg-decay/10 px-3 py-2">
+              <p className="font-mono text-xs uppercase tracking-wider text-decay">
+                {opponentName} left.
+              </p>
+              <p className="mt-1 font-sans text-xs text-text-secondary">
+                {room.mode === "race"
+                  ? `Waiting ${leaveCountdown ?? 10}s for reconnect. If they don't return, you win by default.`
+                  : "You can keep playing. They can rejoin at any time."}
+              </p>
+            </div>
+          )}
+
           {room.status === "waiting" && (
             <RoomWaiting
               roomCode={room.roomCode}
@@ -170,6 +274,7 @@ export default function MultiplayerRoomPage({
             <MatchResults
               roomId={room._id}
               mode={room.mode}
+              currentRound={room.currentRound}
               hostUsername={room.hostUsername}
               guestUsername={room.guestUsername ?? "Guest"}
               hostAvatarUrl={room.hostAvatarUrl}
@@ -179,6 +284,8 @@ export default function MultiplayerRoomPage({
               sharedScore={room.sharedScore ?? undefined}
               maxRounds={room.maxRounds}
               isHost={isHost}
+              hostPresent={room.hostPresent}
+              guestPresent={room.guestPresent}
               opponentPresent={
                 isHost
                   ? room.guestPresent ?? false

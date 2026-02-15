@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import type { PageContent, PageSection } from "@/lib/types";
 import { getContentById, getRandomCachedPage } from "@/lib/content/content-cache";
@@ -17,6 +18,7 @@ import { ArchiveButton } from "@/components/game/archive/archive-button";
 import { DecayTimer } from "@/components/game/decay-timer";
 import { OpponentStatus } from "./opponent-status";
 import { GlowText } from "@/components/ui/glow-text";
+import { LogOut } from "lucide-react";
 
 interface RaceGameProps {
   roomId: Id<"multiplayerRooms">;
@@ -35,9 +37,11 @@ export function RaceGame({
   opponentName,
   opponentAvatar,
 }: RaceGameProps) {
+  const router = useRouter();
   const { user } = useUser();
   const submitAction = useMutation(api.multiplayer.submitAction);
   const endRound = useMutation(api.multiplayer.endRound);
+  const leaveRoom = useMutation(api.multiplayer.leaveRoom);
   const roundActions = useQuery(api.multiplayer.getRoundActions, {
     roomId,
     round: currentRound,
@@ -53,7 +57,10 @@ export function RaceGame({
   const [decayProgress, setDecayProgress] = useState(0);
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
+  const [leaving, setLeaving] = useState(false);
   const roundEndedRef = useRef(false);
+  const hasTimedOutRef = useRef(false);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
     duration: content.decayDuration,
@@ -75,6 +82,27 @@ export function RaceGame({
     );
   }, [roundActions, user]);
 
+  // Handle decay timeout — auto-submit when time runs out
+  useEffect(() => {
+    if (!decayEngine.isComplete || hasTimedOutRef.current) return;
+    hasTimedOutRef.current = true;
+
+    if (hasArchived) return; // already submitted
+
+    if (selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      // No selections — submit score of 0
+      setHasArchived(true);
+      setRoundScore(0);
+      submitAction({
+        roomId,
+        action: "archive",
+        data: "0",
+      }).catch(() => {});
+    }
+  }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-end round when both have archived
   useEffect(() => {
     if (!hasArchived || !opponentArchived || roundEndedRef.current) return;
@@ -93,6 +121,19 @@ export function RaceGame({
 
     endRound({ roomId, hostScoreAdd: hostAdd, guestScoreAdd: guestAdd });
   }, [hasArchived, opponentArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Safety net: if we archived but opponent hasn't after 10s, host force-advances
+  useEffect(() => {
+    if (!hasArchived || opponentArchived || !isHost) return;
+    safetyTimerRef.current = setTimeout(() => {
+      if (roundEndedRef.current) return;
+      roundEndedRef.current = true;
+      endRound({ roomId, hostScoreAdd: roundScore, guestScoreAdd: 0 });
+    }, 10000);
+    return () => {
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    };
+  }, [hasArchived, opponentArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = useCallback(
     (sectionId: string) => {
@@ -115,7 +156,6 @@ export function RaceGame({
   const handleArchive = useCallback(async () => {
     if (hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
-    decayEngine.pause();
 
     // Score selected sections
     let score = 0;
@@ -146,16 +186,37 @@ export function RaceGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction, decayEngine]);
+  }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction]);
+
+  const handleLeaveGame = useCallback(async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await leaveRoom({ roomId });
+    } catch {
+      // continue redirect even if leave call fails
+    }
+    router.push("/multiplayer");
+  }, [leaving, leaveRoom, roomId, router]);
 
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top bar */}
       <div className="flex items-center justify-between px-2">
         <GlowText as="span" color="cyan" intensity="low" className="font-mono text-sm">
           Round {currentRound}/5
         </GlowText>
-        <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLeaveGame}
+            disabled={leaving}
+            className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-decay/40 hover:text-decay disabled:opacity-50"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {leaving ? "Leaving..." : "Leave Game"}
+          </button>
+          <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        </div>
       </div>
 
       {/* Opponent status */}
@@ -179,8 +240,8 @@ export function RaceGame({
         </div>
 
         {/* Tools sidebar */}
-        <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={archiveEnergy} max={GAME_CONSTANTS.BASE_ARCHIVE_ENERGY} />
           <ArchiveButton
             selectedCount={selectedSections.length}

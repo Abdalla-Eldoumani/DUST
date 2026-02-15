@@ -3,29 +3,24 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
-import { SourceScanner } from "./source-scanner";
 import { DateChecker } from "./date-checker";
 import { CrossReference } from "./cross-reference";
 import { SentimentAnalyzer } from "./sentiment-analyzer";
-import type { FactCheckData } from "@/lib/types";
+import type { FactCheckData, PageSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Search, Calendar, GitCompare, Brain } from "lucide-react";
+import { Calendar, GitCompare, Brain } from "lucide-react";
 
 interface ToolPanelProps {
   factCheckData: FactCheckData | null;
+  sections: PageSection[];
   decayProgress: number;
   className?: string;
+  selectedSectionId?: string | null;
 }
 
-type ToolId = "source" | "date" | "cross-ref" | "sentiment";
+type ToolId = "date" | "cross-ref" | "sentiment";
 
 const TOOLS = [
-  {
-    id: "source" as ToolId,
-    label: "Source Scanner",
-    hint: "Check author trust and credibility history.",
-    icon: Search,
-  },
   {
     id: "date" as ToolId,
     label: "Date Checker",
@@ -48,9 +43,14 @@ const TOOLS = [
 
 export function ToolPanel({
   factCheckData,
+  sections,
   decayProgress,
   className,
+  selectedSectionId,
 }: ToolPanelProps) {
+  const selectedSection = selectedSectionId && sections
+    ? sections.find((s) => s.id === selectedSectionId)
+    : null;
   const [activeTool, setActiveTool] = useState<ToolId | null>(null);
   const [usedTools, setUsedTools] = useState<Set<ToolId>>(new Set());
 
@@ -68,9 +68,9 @@ export function ToolPanel({
       title="ANALYSIS TOOLS"
       variant="compact"
       glowColor="cyan"
-      className={cn("h-full", className)}
+      className={className}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-h-0 flex-col">
         {/* Tool buttons */}
         <div className="space-y-2">
           {TOOLS.map(({ id, label, hint, icon: Icon }) => (
@@ -116,40 +116,67 @@ export function ToolPanel({
           Integrity remaining: {Math.max(0, Math.round((1 - decayProgress) * 100))}%
         </p>
 
-        {/* Tool results */}
-        <div className="mt-3 min-h-[120px] border-t border-white/5 pt-3">
-          <AnimatePresence mode="wait">
-            {activeTool && factCheckData && (
-              <motion.div
-                key={activeTool}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.2 }}
-              >
-                {activeTool === "source" && (
-                  <SourceScanner data={factCheckData} />
-                )}
-                {activeTool === "date" && (
-                  <DateChecker data={factCheckData} />
-                )}
-                {activeTool === "cross-ref" && (
-                  <CrossReference data={factCheckData} />
-                )}
-                {activeTool === "sentiment" && (
-                  <SentimentAnalyzer data={factCheckData} />
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Analysis details block lives between tools and Archive Energy */}
+        <div className="mt-3 border-t border-white/5 pt-3">
+          <div className="border border-white/10 bg-elevated/10 px-3 py-3">
+            <AnimatePresence mode="wait" initial={false}>
+              {activeTool ? (
+                <motion.div
+                  key={activeTool}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {factCheckData ? (
+                    <>
+                      {activeTool === "date" && (
+                        <DateChecker data={factCheckData} />
+                      )}
+                      {activeTool === "cross-ref" && (
+                        <CrossReference data={factCheckData} />
+                      )}
+                      {activeTool === "sentiment" && (
+                        <SentimentAnalyzer data={factCheckData} />
+                      )}
 
-          {!activeTool && (
-            <div className="flex min-h-[120px] items-center justify-center border border-dashed border-white/10 bg-elevated/10 px-3">
-              <p className="text-center text-sm text-text-ghost font-sans">
-                Select a tool to analyze this page
-              </p>
-            </div>
-          )}
+                      {/* Per-section analysis hint */}
+                      {selectedSection && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mt-2 border border-white/5 bg-elevated/20 p-2"
+                        >
+                          <p className="mb-1 font-mono text-[10px] text-text-ghost uppercase tracking-wider">
+                            Section Analysis
+                          </p>
+                          <p className="font-sans text-xs text-text-secondary leading-relaxed">
+                            {activeTool === "date" && (selectedSection.dateIssue || "No date inconsistencies found.")}
+                            {activeTool === "cross-ref" && (selectedSection.crossRefIssue || "No cross-reference conflicts found.")}
+                            {activeTool === "sentiment" && (selectedSection.emotionalLanguage || "Language appears neutral.")}
+                          </p>
+                        </motion.div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-text-ghost font-sans">
+                      Analysis data is unavailable for this page.
+                    </p>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.p
+                  key="empty-analysis"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-sm text-text-ghost font-sans"
+                >
+                  Select a tool to view analysis details.
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </TerminalPanel>

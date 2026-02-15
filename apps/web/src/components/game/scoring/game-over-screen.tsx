@@ -80,14 +80,15 @@ export function GameOverScreen({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-void/95 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-void/95 p-4 backdrop-blur-md md:p-6"
     >
       <motion.div
         initial={{ scale: 0.9, y: 30 }}
         animate={{ scale: 1, y: 0 }}
         transition={{ type: "spring", damping: 15 }}
-        className="w-full max-w-lg mx-4 border border-white/10 bg-surface p-8"
+        className="w-full max-w-lg border border-white/10 bg-surface max-h-[calc(100svh-2rem)] overflow-hidden md:max-h-[calc(100svh-3rem)]"
       >
+        <div className="max-h-[calc(100svh-2rem)] overflow-y-auto p-6 md:max-h-[calc(100svh-3rem)] md:p-8">
         {/* Title */}
         <div className="text-center mb-8">
           <GlowText
@@ -174,6 +175,7 @@ export function GameOverScreen({
           >
             Leaderboard
           </button>
+        </div>
         </div>
       </motion.div>
     </motion.div>

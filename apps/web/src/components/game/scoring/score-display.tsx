@@ -54,8 +54,8 @@ export function ScoreDisplay({ score, combo, level }: ScoreDisplayProps) {
                 : "text-text-secondary border-white/10 bg-white/5"
           )}
         >
-          <span className="text-xs">x{combo}</span>
-          <span className="text-xs">COMBO</span>
+          <span className="text-xs">{combo}</span>
+          <span className="text-xs">STREAK</span>
         </motion.div>
       )}
     </div>

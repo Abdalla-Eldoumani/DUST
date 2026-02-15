@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@DUST/backend/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import type { Id } from "@DUST/backend/convex/_generated/dataModel";
 import type { PageContent } from "@/lib/types";
 import { getContentById, getRandomCachedPage } from "@/lib/content/content-cache";
@@ -19,6 +20,7 @@ import { OpponentStatus } from "./opponent-status";
 import { PingSystem } from "./ping-system";
 import { GlowText } from "@/components/ui/glow-text";
 import { useMultiplayerStore } from "@/store/multiplayer-store";
+import { LogOut } from "lucide-react";
 
 interface CoopGameProps {
   roomId: Id<"multiplayerRooms">;
@@ -41,16 +43,23 @@ export function CoopGame({
   sharedEnergy,
   sharedScore,
 }: CoopGameProps) {
+  const router = useRouter();
   const { user } = useUser();
   const submitAction = useMutation(api.multiplayer.submitAction);
   const endRound = useMutation(api.multiplayer.endRound);
   const updateEnergy = useMutation(api.multiplayer.updateSharedEnergy);
+  const leaveRoom = useMutation(api.multiplayer.leaveRoom);
   const roundActions = useQuery(api.multiplayer.getRoundActions, {
     roomId,
     round: currentRound,
   });
 
   const { partnerPings, addPartnerPing } = useMultiplayerStore();
+
+  const coopSelections = useQuery(api.multiplayer.getCoopSelections, {
+    roomId,
+    round: currentRound,
+  });
 
   const content = useMemo(
     () => getContentById(contentId) ?? getRandomCachedPage([], 3),
@@ -62,7 +71,10 @@ export function CoopGame({
   const [decayProgress, setDecayProgress] = useState(0);
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
+  const [leaving, setLeaving] = useState(false);
   const roundEndedRef = useRef(false);
+  const hasTimedOutRef = useRef(false);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
     duration: content.decayDuration,
@@ -102,6 +114,26 @@ export function CoopGame({
     );
   }, [roundActions, user]);
 
+  // Handle decay timeout — auto-submit when time runs out
+  useEffect(() => {
+    if (!decayEngine.isComplete || hasTimedOutRef.current) return;
+    hasTimedOutRef.current = true;
+
+    if (hasArchived) return;
+
+    if (selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      setHasArchived(true);
+      setRoundScore(0);
+      submitAction({
+        roomId,
+        action: "archive",
+        data: "0",
+      }).catch(() => {});
+    }
+  }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-end round when both have archived
   useEffect(() => {
     if (!hasArchived || !partnerArchived || roundEndedRef.current) return;
@@ -123,6 +155,32 @@ export function CoopGame({
     });
   }, [hasArchived, partnerArchived]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety net: if we archived but partner hasn't after 10s, host force-advances
+  useEffect(() => {
+    if (!hasArchived || partnerArchived || !isHost) return;
+    safetyTimerRef.current = setTimeout(() => {
+      if (roundEndedRef.current) return;
+      roundEndedRef.current = true;
+      endRound({
+        roomId,
+        hostScoreAdd: 0,
+        guestScoreAdd: 0,
+        sharedScoreAdd: roundScore,
+      });
+    }, 10000);
+    return () => {
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    };
+  }, [hasArchived, partnerArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derive partner selections from synced data
+  const partnerSelections = useMemo(() => {
+    if (!coopSelections || !user) return [] as string[];
+    return coopSelections
+      .filter((s: { sectionId: string; playerId: string }) => s.playerId !== user.id)
+      .map((s: { sectionId: string; playerId: string }) => s.sectionId);
+  }, [coopSelections, user]);
+
   const handleSelect = useCallback(
     (sectionId: string) => {
       if (hasArchived) return;
@@ -141,14 +199,20 @@ export function CoopGame({
         setLocalEnergy(newEnergy);
         updateEnergy({ roomId, energy: newEnergy });
       }
+
+      // Sync selection to Convex for partner visibility
+      submitAction({
+        roomId,
+        action: "select",
+        data: JSON.stringify({ sectionId, playerId: user?.id }),
+      }).catch(() => {});
     },
-    [hasArchived, content.sections, selectedSections, localEnergy, roomId, updateEnergy]
+    [hasArchived, content.sections, selectedSections, localEnergy, roomId, updateEnergy, submitAction, user]
   );
 
   const handleArchive = useCallback(async () => {
     if (hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
-    decayEngine.pause();
 
     let score = 0;
     for (const sId of selectedSections) {
@@ -172,10 +236,21 @@ export function CoopGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction, decayEngine]);
+  }, [hasArchived, selectedSections, content.sections, decayProgress, roomId, submitAction]);
+
+  const handleLeaveGame = useCallback(async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await leaveRoom({ roomId });
+    } catch {
+      // continue redirect even if leave call fails
+    }
+    router.push("/multiplayer");
+  }, [leaving, leaveRoom, roomId, router]);
 
   return (
-    <div className="flex flex-col gap-3 h-full">
+    <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top bar */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-4">
@@ -186,7 +261,17 @@ export function CoopGame({
             Team Score: {sharedScore}
           </span>
         </div>
-        <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLeaveGame}
+            disabled={leaving}
+            className="inline-flex items-center gap-1.5 border border-white/15 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-text-secondary transition-colors hover:border-decay/40 hover:text-decay disabled:opacity-50"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            {leaving ? "Leaving..." : "Leave Game"}
+          </button>
+          <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
+        </div>
       </div>
 
       {/* Partner status */}
@@ -205,13 +290,14 @@ export function CoopGame({
             content={content}
             decayProgress={decayProgress}
             selectedSections={selectedSections}
+            partnerSelections={partnerSelections}
             onSelectSection={handleSelect}
           />
         </div>
 
         {/* Tools sidebar */}
-        <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
+        <div className="flex flex-col gap-3 min-h-0 overflow-y-auto">
+          <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={localEnergy} max={10} />
           <ArchiveButton
             selectedCount={selectedSections.length}
