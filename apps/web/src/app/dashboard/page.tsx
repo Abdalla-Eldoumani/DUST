@@ -22,7 +22,12 @@ export default function Dashboard() {
         <SignInButton />
       </Unauthenticated>
       <AuthLoading>
-        <div>Loading...</div>
+        <div>
+          <h1>
+            Logged in as {user.user?.fullName}
+          </h1>
+        </div>
+        <UserButton />
       </AuthLoading>
     </>
   );
