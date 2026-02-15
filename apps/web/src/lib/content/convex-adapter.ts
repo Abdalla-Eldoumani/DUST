@@ -103,6 +103,19 @@ function splitTextIntoTwoChunks(text: string): [string, string] | null {
   return [first, second];
 }
 
+function ensureUniqueSectionIds(sections: PageSection[]): PageSection[] {
+  const seen = new Map<string, number>();
+  return sections.map((section) => {
+    const count = seen.get(section.id) ?? 0;
+    seen.set(section.id, count + 1);
+    if (count === 0) return section;
+    return {
+      ...section,
+      id: `${section.id}__${count + 1}`,
+    };
+  });
+}
+
 /**
  * Determine a category for a section based on the HTML tag.
  */
@@ -391,6 +404,7 @@ export function variantToPageContent(
       i === idx ? { ...s, isTrue: false } : s
     );
   }
+  finalSections = ensureUniqueSectionIds(finalSections);
   const url = originalPage?.url ?? `archive://sector-${variant.variantId}`;
 
   const difficulty = variant.difficulty;
