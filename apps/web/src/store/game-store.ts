@@ -221,6 +221,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       totalArchived: archive.length,
       bestCombo,
       timePlayed,
+      level: get().currentLevel,
     };
 
     set({ gamePhase: "gameover" });

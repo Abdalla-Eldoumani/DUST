@@ -15,10 +15,11 @@ export const save = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Must be logged in to save archives");
     const correctItems = args.items.filter((i) => i.wasCorrect).length;
 
     return ctx.db.insert("archives", {
-      userId: identity?.subject ?? undefined,
+      userId: identity.subject,
       sessionId: args.sessionId,
       items: args.items,
       totalItems: args.items.length,

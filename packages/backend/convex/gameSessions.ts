@@ -5,8 +5,9 @@ export const create = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Must be logged in to play");
     return ctx.db.insert("gameSessions", {
-      userId: identity?.subject ?? undefined,
+      userId: identity.subject,
       score: 0,
       level: 1,
       combo: 0,

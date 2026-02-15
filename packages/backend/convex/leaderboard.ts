@@ -14,10 +14,22 @@ export const submit = mutation({
       throw new Error("Must be logged in to submit scores");
     }
 
+    const clerkId = identity.subject;
+
+    // Look up user from users table
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found — please sign in again");
+    }
+
     // Check if user already has a leaderboard entry
     const existing = await ctx.db
       .query("leaderboard")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
       .first();
 
     if (existing) {
@@ -28,14 +40,17 @@ export const submit = mutation({
           accuracy: args.accuracy,
           level: args.level,
           pagesCompleted: args.pagesCompleted,
-          username: identity.name ?? identity.email ?? "Archivist",
+          username: user.username,
+          avatarUrl: user.avatarUrl,
           achievedAt: Date.now(),
         });
       }
     } else {
       await ctx.db.insert("leaderboard", {
-        userId: identity.subject,
-        username: identity.name ?? identity.email ?? "Archivist",
+        userId: user._id,
+        clerkId,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
         score: args.score,
         accuracy: args.accuracy,
         level: args.level,
@@ -49,17 +64,15 @@ export const submit = mutation({
 export const getTop = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const entries = await ctx.db
+    return ctx.db
       .query("leaderboard")
       .withIndex("by_score")
       .order("desc")
-      .take(args.limit ?? 100);
-
-    return entries;
+      .take(args.limit ?? 50);
   },
 });
 
-export const getUserRank = query({
+export const getMyRank = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -67,7 +80,7 @@ export const getUserRank = query({
 
     const userEntry = await ctx.db
       .query("leaderboard")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .first();
 
     if (!userEntry) return null;

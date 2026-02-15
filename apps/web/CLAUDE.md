@@ -57,9 +57,15 @@ npx next build           # Production build (test before demo)
 - No direct Convex mutations from components — go through the store or server actions.
 
 ### Auth
-- Clerk middleware protects only `/dashboard` and leaderboard submission.
-- The game (`/play`) works WITHOUT authentication (guest mode).
-- Never show a login wall before gameplay. Auth is optional and invisible.
+- Clerk middleware enforces authentication on all non-public routes.
+- The game (`/play`) requires authentication. Unauthenticated users are redirected to `/sign-in`.
+- Public routes: `/`, `/sign-in`, `/sign-up`, `/about`, `/how-to-play`, `/api/generate-content`.
+- Protected routes include: `/play`, `/dashboard`, `/leaderboard`, `/multiplayer`.
+
+### Routes
+- `/sign-in` — Clerk sign-in page
+- `/sign-up` — Clerk sign-up page
+- `/multiplayer` — Multiplayer lobby and room management
 
 ## Environment Variables
 

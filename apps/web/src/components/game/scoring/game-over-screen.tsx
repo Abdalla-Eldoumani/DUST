@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Target, Layers, Zap, Clock } from "lucide-react";
+import { Trophy, Target, Layers, Zap, Clock, Check, Loader2 } from "lucide-react";
+import { useMutation } from "convex/react";
+import { api } from "@DUST/backend/convex/_generated/api";
+import { toast } from "sonner";
 import type { GameResult } from "@/lib/types";
 import { GlowText } from "@/components/ui/glow-text";
 
@@ -16,6 +20,27 @@ export function GameOverScreen({
   onPlayAgain,
   onViewLeaderboard,
 }: GameOverScreenProps) {
+  const submitScore = useMutation(api.leaderboard.submit);
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "saved" | "error">("idle");
+
+  useEffect(() => {
+    if (submitState !== "idle") return;
+    setSubmitState("submitting");
+    submitScore({
+      score: result.totalScore,
+      accuracy: result.accuracy,
+      level: result.level,
+      pagesCompleted: result.pagesCompleted,
+    })
+      .then(() => {
+        setSubmitState("saved");
+        toast.success("Score saved to leaderboard!");
+      })
+      .catch(() => {
+        setSubmitState("error");
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const stats = [
     {
       icon: Trophy,
@@ -77,7 +102,7 @@ export function GameOverScreen({
         </div>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           {stats.map(({ icon: Icon, label, value, color }, i) => (
             <motion.div
               key={label}
@@ -99,6 +124,32 @@ export function GameOverScreen({
               </span>
             </motion.div>
           ))}
+        </div>
+
+        {/* Score submission status */}
+        <div className="mb-6 text-center">
+          {submitState === "submitting" && (
+            <span className="inline-flex items-center gap-1.5 font-mono text-xs text-text-ghost">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving score...
+            </span>
+          )}
+          {submitState === "saved" && (
+            <span className="inline-flex items-center gap-1.5 font-mono text-xs text-archive">
+              <Check className="h-3 w-3" />
+              Score saved!
+            </span>
+          )}
+          {submitState === "error" && (
+            <button
+              onClick={() => {
+                setSubmitState("idle");
+              }}
+              className="font-mono text-xs text-amber hover:text-amber/80 transition-colors"
+            >
+              Failed to save — tap to retry
+            </button>
+          )}
         </div>
 
         {/* Action buttons */}

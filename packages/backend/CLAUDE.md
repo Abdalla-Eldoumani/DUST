@@ -35,7 +35,8 @@ packages/backend/convex/
 ├── leaderboard.ts      → Leaderboard mutations + queries
 ├── archives.ts         → Archive persistence
 ├── cachedContent.ts    → Pre-generated content storage
-└── users.ts            → User profile management (Clerk sync)
+├── users.ts            → User profile management (Clerk sync)
+└── multiplayer.ts      → Multiplayer room management and actions
 ```
 
 ## Rules
@@ -43,7 +44,7 @@ packages/backend/convex/
 1. **Keep it simple.** Convex functions should be thin — business logic lives in the frontend game engine.
 2. **No over-indexing.** Only add database indexes we actually query on.
 3. **Fail gracefully.** If Convex is down, the game should still work (just no leaderboard/persistence).
-4. **Auth is optional.** Guest users can play — they just can't save to leaderboard.
+4. **Auth is required.** All game sessions and archive operations require an authenticated user.
 5. **Don't over-normalize.** For a hackathon, denormalized data is fine. Store the full archive array in one document rather than individual items in a separate table.
 
 ## Environment Variables
