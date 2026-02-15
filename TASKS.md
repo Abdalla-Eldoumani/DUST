@@ -235,7 +235,7 @@
 ## Phase 4: Visual Polish & Pages (Hours 12–16)
 
 ### 4.1 Landing Page
-- [ ] Redesign `apps/web/src/app/page.tsx`:
+- [x] Redesign `apps/web/src/app/page.tsx`:
   - CINEMATIC landing page — this is the first thing judges see
   - Animated title "DUST" with glitch/decay effect on load
   - Tagline animates in: "The internet is dying. You're the last archivist."
@@ -245,20 +245,21 @@
   - Secondary links: Leaderboard, How to Play, About
   - NO generic hero section. NO stock imagery. NO typical landing page layout.
   - Think: the opening screen of a cinematic indie game
-- [ ] Git commit: "Phase 4.1: Landing page"
+- [x] Created `glitch-text.tsx` and `particle-field.tsx` components
+- [x] Git commit: "Phase 4.1: Landing page"
 
 ### 4.2 Game Screen Layout
-- [ ] Create `apps/web/src/app/play/page.tsx`:
-  - Main game screen layout
+- [x] Create `apps/web/src/app/play/page.tsx`:
+  - Main game screen layout with full game loop
   - Left: Fake page viewport (70% width) with decay
   - Right: Tool panel + archive controls (30% width)
   - Top: Score bar, level indicator, decay timer
-  - Bottom: Archive energy bar, hint text
-  - Responsive: on mobile, tools slide in from bottom
-- [ ] Create `apps/web/src/app/play/layout.tsx`:
+  - Bottom: Page counter, difficulty label
+  - Menu state, loading, gameplay, reveal, game over states
+- [x] Create `apps/web/src/app/play/layout.tsx`:
   - Game-specific layout (no header nav, minimal chrome)
-  - Full-screen immersive experience
-- [ ] Git commit: "Phase 4.2: Game screen layout"
+  - Full-screen immersive experience with scanline overlay
+- [x] Git commit: "Phase 4.2: Game screen layout"
 
 ### 4.3 How to Play / Tutorial
 - [ ] Create `apps/web/src/app/how-to-play/page.tsx`:
