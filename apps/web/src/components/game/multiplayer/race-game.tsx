@@ -89,7 +89,6 @@ export function RaceGame({
     } else {
       // No selections — submit score of 0
       setHasArchived(true);
-      decayEngine.pause();
       setRoundScore(0);
       submitAction({
         roomId,
@@ -152,7 +151,6 @@ export function RaceGame({
   const handleArchive = useCallback(async () => {
     if (hasArchived || selectedSections.length === 0) return;
     setHasArchived(true);
-    decayEngine.pause();
 
     // Score selected sections
     let score = 0;
@@ -183,7 +181,7 @@ export function RaceGame({
     } catch {
       // continue
     }
-  }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction, decayEngine]);
+  }, [hasArchived, selectedSections, content.sections, decayProgress, opponentArchived, roomId, submitAction]);
 
   return (
     <div className="flex flex-col gap-3 h-full">
