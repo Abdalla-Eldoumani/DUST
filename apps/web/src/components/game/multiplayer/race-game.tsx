@@ -49,7 +49,7 @@ export function RaceGame({
   );
 
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
-  const [archiveEnergy, setArchiveEnergy] = useState(GAME_CONSTANTS.BASE_ARCHIVE_ENERGY);
+  const [archiveEnergy, setArchiveEnergy] = useState<number>(GAME_CONSTANTS.BASE_ARCHIVE_ENERGY);
   const [decayProgress, setDecayProgress] = useState(0);
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
@@ -71,7 +71,7 @@ export function RaceGame({
   const opponentArchived = useMemo(() => {
     if (!roundActions || !user) return false;
     return roundActions.some(
-      (a) => a.action === "archive" && a.clerkId !== user.id
+      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id
     );
   }, [roundActions, user]);
 
@@ -82,7 +82,7 @@ export function RaceGame({
 
     // Calculate opponent score from their action data
     const opponentAction = roundActions?.find(
-      (a) => a.action === "archive" && a.clerkId !== user?.id
+      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user?.id
     );
     const opponentScore = opponentAction?.data
       ? parseInt(opponentAction.data, 10) || 0
@@ -155,7 +155,7 @@ export function RaceGame({
         <GlowText as="span" color="cyan" intensity="low" className="font-mono text-sm">
           Round {currentRound}/5
         </GlowText>
-        <DecayTimer progress={decayProgress} isUrgent={decayProgress > 0.75} />
+        <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
       </div>
 
       {/* Opponent status */}
@@ -180,7 +180,7 @@ export function RaceGame({
 
         {/* Tools sidebar */}
         <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel content={content} decayProgress={decayProgress} />
+          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
           <EnergyBar current={archiveEnergy} max={GAME_CONSTANTS.BASE_ARCHIVE_ENERGY} />
           <ArchiveButton
             selectedCount={selectedSections.length}

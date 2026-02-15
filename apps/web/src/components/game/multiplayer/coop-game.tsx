@@ -85,7 +85,7 @@ export function CoopGame({
   useEffect(() => {
     if (!roundActions || !user) return;
     const pings = roundActions.filter(
-      (a) => a.action === "ping" && a.clerkId !== user.id
+      (a: { action: string; clerkId: string; data?: string }) => a.action === "ping" && a.clerkId !== user.id
     );
     for (const ping of pings) {
       if (ping.data) {
@@ -98,7 +98,7 @@ export function CoopGame({
   const partnerArchived = useMemo(() => {
     if (!roundActions || !user) return false;
     return roundActions.some(
-      (a) => a.action === "archive" && a.clerkId !== user.id
+      (a: { action: string; clerkId: string }) => a.action === "archive" && a.clerkId !== user.id
     );
   }, [roundActions, user]);
 
@@ -108,7 +108,7 @@ export function CoopGame({
     roundEndedRef.current = true;
 
     const partnerAction = roundActions?.find(
-      (a) => a.action === "archive" && a.clerkId !== user?.id
+      (a: { action: string; clerkId: string; data?: string }) => a.action === "archive" && a.clerkId !== user?.id
     );
     const partnerScore = partnerAction?.data
       ? parseInt(partnerAction.data, 10) || 0
@@ -186,7 +186,7 @@ export function CoopGame({
             Team Score: {sharedScore}
           </span>
         </div>
-        <DecayTimer progress={decayProgress} isUrgent={decayProgress > 0.75} />
+        <DecayTimer progress={decayProgress} remaining={Math.round(content.decayDuration * (1 - decayProgress))} />
       </div>
 
       {/* Partner status */}
@@ -211,7 +211,7 @@ export function CoopGame({
 
         {/* Tools sidebar */}
         <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel content={content} decayProgress={decayProgress} />
+          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
           <EnergyBar current={localEnergy} max={10} />
           <ArchiveButton
             selectedCount={selectedSections.length}

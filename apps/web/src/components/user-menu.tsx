@@ -1,7 +1,6 @@
 "use client";
 
 import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/nextjs";
-import Link from "next/link";
 import { LogOut, Settings } from "lucide-react";
 import {
   DropdownMenu,
@@ -16,18 +15,18 @@ export function UserMenu() {
     <>
       <SignedOut>
         <div className="flex items-center gap-2">
-          <Link
+          <a
             href="/sign-in"
             className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-text-secondary border border-white/10 hover:text-text-primary hover:border-white/20 transition-colors"
           >
             Sign In
-          </Link>
-          <Link
+          </a>
+          <a
             href="/sign-up"
             className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-archive border border-archive/30 hover:bg-archive/10 transition-colors"
           >
             Sign Up
-          </Link>
+          </a>
         </div>
       </SignedOut>
       <SignedIn>
