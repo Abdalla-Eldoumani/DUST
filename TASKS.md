@@ -277,19 +277,15 @@
 - [x] Git commit: "Phase 4.3: Tutorial page"
 
 ### 4.4 Visual Polish Pass
-- [ ] Add page transition animations (Framer Motion `AnimatePresence`)
-- [ ] Add loading states with custom skeleton screens (decaying skeleton, not just gray boxes)
-- [ ] Add hover effects on all interactive elements
-- [ ] Add sound effects (optional, only if time permits):
-  - Ambient hum for game screen
-  - Glitch/static sound on decay milestones
-  - Archive confirmation sound
-  - Score count-up ticking
-- [ ] Ensure all text is readable during mid-decay (not just early/late)
-- [ ] Add "screen shake" effect when decay hits critical threshold
-- [ ] Add particle effects (floating data dust) on game screen background
-- [ ] Test on 1920x1080 (projector resolution for demo)
-- [ ] Git commit: "Phase 4.4: Visual polish"
+- [x] Add page transition animations (Framer Motion `AnimatePresence` on fake pages)
+- [x] Add loading states with custom animated loader (scan lines, sector numbers)
+- [x] Hover effects on all interactive elements (tools, sections, buttons)
+- [ ] Add sound effects (optional, only if time permits)
+- [x] Text readable during mid-decay (quantized progress, decay order system)
+- [x] Add "screen shake" effect when decay hits critical threshold (75%)
+- [x] Add red vignette overlay at critical decay
+- [x] Add particle effects (floating data dust) on game screen background
+- [x] Git commit: "Phase 4.4: Visual polish"
 
 ### 4.5 About Page
 - [x] Create `apps/web/src/app/about/page.tsx`:

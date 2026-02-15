@@ -30,6 +30,7 @@ export default function PlayPage() {
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  const [screenShake, setScreenShake] = useState(false);
 
   const difficulty = useMemo(
     () => getDifficulty(store.currentLevel),
@@ -57,6 +58,14 @@ export default function PlayPage() {
       decayEngine.start();
     }
   }, [store.gamePhase, store.currentPage?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Screen shake when decay crosses 75%
+  useEffect(() => {
+    if (store.decayProgress >= 0.75 && store.decayProgress < 0.78 && store.gamePhase === "playing") {
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), 400);
+    }
+  }, [Math.round(store.decayProgress * 30)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-archive (or force end) when decay completes
   useEffect(() => {
@@ -167,12 +176,40 @@ export default function PlayPage() {
   // ─── LOADING ───
   if (store.gamePhase === "loading" || !store.currentPage) {
     return (
-      <div className="flex min-h-svh items-center justify-center">
-        <div className="text-center">
-          <div className="font-mono text-sm text-scan animate-pulse">
-            Loading archived page...
+      <div className="flex min-h-svh items-center justify-center relative">
+        <ParticleField particleCount={30} />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative z-10 text-center"
+        >
+          <div className="font-mono text-xs text-text-ghost uppercase tracking-widest mb-3">
+            Locating archived page
           </div>
-        </div>
+          <div className="flex items-center gap-2 justify-center">
+            <motion.div
+              className="h-1 w-8 bg-scan"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            />
+            <motion.div
+              className="h-1 w-8 bg-scan"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+            />
+            <motion.div
+              className="h-1 w-8 bg-scan"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+            />
+          </div>
+          <div className="mt-4 font-mono text-[10px] text-text-ghost/40">
+            SECTOR {Math.floor(Math.random() * 9999)
+              .toString()
+              .padStart(4, "0")}{" "}
+            · INTEGRITY DECLINING
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -182,8 +219,39 @@ export default function PlayPage() {
   const FakePageComponent = getFakePageComponent(page.contentType);
   const latestItems = store.archive.slice(-store.selectedSections.length);
 
+  const isCritical = store.decayProgress >= 0.75;
+
   return (
-    <div className="flex min-h-svh flex-col">
+    <motion.div
+      className="flex min-h-svh flex-col relative"
+      animate={
+        screenShake
+          ? {
+              x: [0, -3, 3, -2, 2, 0],
+              y: [0, 2, -2, 1, -1, 0],
+            }
+          : {}
+      }
+      transition={screenShake ? { duration: 0.4 } : {}}
+    >
+      {/* Background particles — subtle during gameplay */}
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <ParticleField particleCount={20} />
+      </div>
+
+      {/* Critical decay vignette */}
+      {isCritical && (
+        <motion.div
+          className="pointer-events-none fixed inset-0 z-[100]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.1, 0.2, 0.1] }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+          style={{
+            background: "radial-gradient(ellipse at center, transparent 50%, rgba(255,51,68,0.15) 100%)",
+          }}
+        />
+      )}
+
       {/* Top bar */}
       <div className="flex items-center justify-between border-b border-white/5 bg-surface/40 px-4 py-2">
         <ScoreDisplay
@@ -286,7 +354,7 @@ export default function PlayPage() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
