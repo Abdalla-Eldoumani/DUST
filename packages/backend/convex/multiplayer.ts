@@ -460,6 +460,9 @@ export const leaveRoom = mutation({
     const isHost = room.hostClerkId === identity.subject;
     const isGuest = room.guestClerkId === identity.subject;
     if (!isHost && !isGuest) return;
+    const players = getPlayers(room);
+    const playerIdx = players.findIndex((p) => p.clerkId === identity.subject);
+    if (playerIdx < 0) return;
 
     // Before a match starts, room membership should be actively cleaned up.
     if (room.status === "waiting" || room.status === "ready") {
@@ -518,6 +521,8 @@ export const leaveRoom = mutation({
 
     await ctx.db.patch(args.roomId, {
       ...(isHost ? { hostPresent: false } : { guestPresent: false }),
+      status: newStatus,
+      players: updatedPlayers,
       updatedAt: Date.now(),
     });
   },
