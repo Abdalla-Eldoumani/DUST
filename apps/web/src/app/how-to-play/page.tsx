@@ -12,6 +12,7 @@ import {
   Play,
   ChevronLeft,
   ChevronRight,
+  Users,
 } from "lucide-react";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
@@ -26,31 +27,44 @@ const STEPS = [
     description:
       "Web pages appear — news articles, blog posts, wiki entries. They look real, but the data is degrading. Text corrupts, colors fade, layouts break apart. Read fast before the content is lost.",
     color: "cyan" as const,
-    detail: "Pages decay faster as you level up. Easy mode gives you 60 seconds. Expert mode: 18.",
+    detail:
+      "10 levels across 4 difficulty tiers: Easy (levels 1-3, 60s), Medium (4-5, 45s), Hard (6-8, 30s), Expert (9-10, 18s). Decay speeds up each level.",
   },
   {
     icon: Search,
     title: "Spot the Lies",
     description:
-      "Every page mixes truth with misinformation. Use four analysis tools — Source Scanner, Date Checker, Cross-Reference, and Sentiment Analyzer — to identify what's real and what's fabricated.",
+      "Every page mixes truth with misinformation. In solo mode, you get 3 lifelines to help: Verify reveals whether a section is true or false, Freeze pauses the decay timer until your next selection, and Purge removes one false section from the page.",
     color: "amber" as const,
-    detail: "No tool is 100% reliable. Combine insights from multiple tools to form your judgment.",
+    detail:
+      "Lifelines are limited — use them wisely. They are only available in solo mode, not multiplayer.",
   },
   {
     icon: MousePointerClick,
-    title: "Use Your Tools",
+    title: "Archive the Truth",
     description:
-      "Click sections you believe are TRUE to mark them for archiving. Each section costs archive energy — you can't save everything. Choose wisely: archive truth and earn points, archive misinformation and lose more.",
+      "Click sections you believe are TRUE to mark them for archiving. Each page gives you limited archive energy and every section costs energy. You must use all your energy before you can submit — so choose carefully.",
     color: "green" as const,
-    detail: "+100 for truth, -150 for lies. Build combos for bonus multipliers.",
+    detail:
+      "Scoring: +100 for truth, -150 for misinformation, +50 clutch save (≥90% decay), -400 if you time out.",
   },
   {
     icon: Trophy,
-    title: "Archive the Truth",
+    title: "Score & Progress",
     description:
-      "Hit the ARCHIVE button to lock in your selections. The truth is revealed — correct archives glow green, mistakes glow red. Your score accumulates as you build the most accurate archive possible.",
+      "After archiving, the truth is revealed — correct archives glow green, mistakes glow red. Build a combo streak for bonus multipliers (+0.25x per consecutive correct page). Each game has 5 pages — your final score combines accuracy, speed, and streaks.",
     color: "green" as const,
-    detail: "Clutch saves (archiving in the last 10% of decay) earn +50 bonus points.",
+    detail:
+      "Game over screen shows your total score, accuracy %, best combo, and rank on the leaderboard.",
+  },
+  {
+    icon: Users,
+    title: "Go Multiplayer",
+    description:
+      "Challenge others in Race mode — compete head-to-head with a speed bonus for the first correct archive. Or team up in Co-op mode with a shared energy pool and combined score. Up to 5 players per room, join via a 6-character code.",
+    color: "cyan" as const,
+    detail:
+      "Lifelines are disabled in multiplayer. Race rewards speed, Co-op rewards teamwork.",
   },
 ];
 
@@ -82,48 +96,66 @@ function DecayDemo() {
   );
 }
 
-function ToolsDemo() {
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const tools = [
-    { id: "source", label: "Source", result: "Credibility: 35% — No credible byline found", icon: Search },
-    { id: "date", label: "Date", result: "Timeline consistent — no anachronisms detected", icon: Eye },
-    { id: "cross-ref", label: "Cross-Ref", result: "2 conflicts found with known data", icon: MousePointerClick },
-    { id: "sentiment", label: "Sentiment", result: "Emotional score: 65% — moderate bias detected", icon: Trophy },
+function LifelinesDemo() {
+  const [activeLifeline, setActiveLifeline] = useState<string | null>(null);
+  const lifelines = [
+    {
+      id: "verify",
+      label: "Verify",
+      result: "Section verified as TRUE ✓",
+      color: "text-archive border-archive/35 bg-archive/10",
+    },
+    {
+      id: "freeze",
+      label: "Freeze",
+      result: "Decay paused — timer frozen until next selection",
+      color: "text-scan border-scan/35 bg-scan/10",
+    },
+    {
+      id: "purge",
+      label: "Purge",
+      result: "False section removed from page",
+      color: "text-decay border-decay/35 bg-decay/10",
+    },
   ];
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-1.5">
-        {tools.map((t) => (
+      <div className="grid grid-cols-3 gap-1.5">
+        {lifelines.map((l) => (
           <button
-            key={t.id}
-            onClick={() => setActiveTool(activeTool === t.id ? null : t.id)}
+            key={l.id}
+            onClick={() =>
+              setActiveLifeline(activeLifeline === l.id ? null : l.id)
+            }
             className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
-              activeTool === t.id
-                ? "bg-scan/10 border-scan/35 text-scan"
+              activeLifeline === l.id
+                ? l.color
                 : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
             }`}
           >
-            {t.label}
+            {l.label}
           </button>
         ))}
       </div>
       <AnimatePresence mode="wait">
-        {activeTool && (
+        {activeLifeline && (
           <motion.div
-            key={activeTool}
+            key={activeLifeline}
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="border border-scan/20 bg-scan/5 p-2 font-mono text-xs text-scan"
+            className={`border p-2 font-mono text-xs ${
+              lifelines.find((l) => l.id === activeLifeline)?.color
+            }`}
           >
-            {tools.find((t) => t.id === activeTool)?.result}
+            {lifelines.find((l) => l.id === activeLifeline)?.result}
           </motion.div>
         )}
       </AnimatePresence>
-      {!activeTool && (
+      {!activeLifeline && (
         <p className="text-center font-sans text-xs text-text-ghost py-2">
-          Click a tool to see its analysis
+          Click a lifeline to see what it does
         </p>
       )}
     </div>
@@ -217,7 +249,62 @@ function ScoringDemo() {
   );
 }
 
-const DEMOS = [DecayDemo, ToolsDemo, ArchiveDemo, ScoringDemo];
+function MultiplayerDemo() {
+  const [mode, setMode] = useState<"race" | "coop" | null>(null);
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          onClick={() => setMode(mode === "race" ? null : "race")}
+          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
+            mode === "race"
+              ? "bg-amber/10 border-amber/35 text-amber"
+              : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
+          }`}
+        >
+          Race
+        </button>
+        <button
+          onClick={() => setMode(mode === "coop" ? null : "coop")}
+          className={`p-2 border font-mono text-[11px] uppercase tracking-wide transition-all ${
+            mode === "coop"
+              ? "bg-archive/10 border-archive/35 text-archive"
+              : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary"
+          }`}
+        >
+          Co-op
+        </button>
+      </div>
+      <AnimatePresence mode="wait">
+        {mode && (
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`border p-2 font-mono text-xs ${
+              mode === "race"
+                ? "border-amber/20 bg-amber/5 text-amber"
+                : "border-archive/20 bg-archive/5 text-archive"
+            }`}
+          >
+            {mode === "race"
+              ? "Compete head-to-head — first to correctly archive gets a speed bonus. Up to 5 players."
+              : "Work together — shared energy pool, combined score. Coordinate to cover more ground."}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {!mode && (
+        <p className="text-center font-sans text-xs text-text-ghost py-2">
+          Choose a mode to learn more
+        </p>
+      )}
+    </div>
+  );
+}
+
+const DEMOS = [DecayDemo, LifelinesDemo, ArchiveDemo, ScoringDemo, MultiplayerDemo];
 
 export default function HowToPlayPage() {
   const [step, setStep] = useState(0);
@@ -375,8 +462,12 @@ export default function HowToPlayPage() {
                 <span className="text-amber">+50</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-ghost">Combo bonus</span>
-                <span className="text-scan">x streak</span>
+                <span className="text-text-ghost">Timeout</span>
+                <span className="text-decay">-400</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-ghost">Combo streak</span>
+                <span className="text-scan">+0.25x per page</span>
               </div>
             </div>
           </TerminalPanel>

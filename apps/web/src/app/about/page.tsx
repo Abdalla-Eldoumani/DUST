@@ -33,7 +33,7 @@ const TOPICS = [
 ];
 
 const TECH_STACK = [
-  { name: "Next.js 15", role: "Framework" },
+  { name: "Next.js 16", role: "Framework" },
   { name: "Tailwind CSS", role: "Styling" },
   { name: "Framer Motion", role: "Animations" },
   { name: "Zustand", role: "State Management" },
@@ -135,6 +135,39 @@ export default function AboutPage() {
           </TerminalPanel>
         </motion.div>
 
+        {/* Game Features */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.45 }}
+          className="mb-8"
+        >
+          <TerminalPanel title="FEATURES" variant="compact" glowColor="amber">
+            <div className="space-y-1.5 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Solo play</span>
+                <span className="text-text-ghost">10 levels across 4 difficulty tiers</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Lifelines</span>
+                <span className="text-text-ghost">Verify · Freeze · Purge</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Race mode</span>
+                <span className="text-text-ghost">Head-to-head speed competition</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Co-op mode</span>
+                <span className="text-text-ghost">Shared energy, combined score</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Multiplayer</span>
+                <span className="text-text-ghost">Up to 5 players per room</span>
+              </div>
+            </div>
+          </TerminalPanel>
+        </motion.div>
+
         {/* Team */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -146,8 +179,11 @@ export default function AboutPage() {
             <p className="font-sans text-sm text-text-secondary mb-3">
               Built at Calgary Hacks 2026
             </p>
-            <div className="font-mono text-xs text-text-ghost">
-              <div>Team DUST — University of Calgary</div>
+            <div className="font-mono text-xs text-text-ghost space-y-1">
+              <div>Abdalla ElDoumani</div>
+              <div>Nathan Campbell</div>
+              <div>Jerry Mukalel</div>
+              <div>Varun Sharma</div>
             </div>
           </TerminalPanel>
         </motion.div>
