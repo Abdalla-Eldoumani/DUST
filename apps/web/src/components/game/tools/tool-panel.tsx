@@ -3,27 +3,28 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
-import { SourceScanner } from "./source-scanner";
+import { ClaimDensity } from "./claim-density";
 import { DateChecker } from "./date-checker";
 import { CrossReference } from "./cross-reference";
 import { SentimentAnalyzer } from "./sentiment-analyzer";
-import type { FactCheckData } from "@/lib/types";
+import type { FactCheckData, PageSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Search, Calendar, GitCompare, Brain } from "lucide-react";
 
 interface ToolPanelProps {
   factCheckData: FactCheckData | null;
+  sections: PageSection[];
   decayProgress: number;
   className?: string;
 }
 
-type ToolId = "source" | "date" | "cross-ref" | "sentiment";
+type ToolId = "claims" | "date" | "cross-ref" | "sentiment";
 
 const TOOLS = [
   {
-    id: "source" as ToolId,
-    label: "Source Scanner",
-    hint: "Check author trust and credibility history.",
+    id: "claims" as ToolId,
+    label: "Claim Density",
+    hint: "Detect sections packed with specific claims.",
     icon: Search,
   },
   {
@@ -48,6 +49,7 @@ const TOOLS = [
 
 export function ToolPanel({
   factCheckData,
+  sections,
   decayProgress,
   className,
 }: ToolPanelProps) {
@@ -127,8 +129,8 @@ export function ToolPanel({
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2 }}
               >
-                {activeTool === "source" && (
-                  <SourceScanner data={factCheckData} />
+                {activeTool === "claims" && (
+                  <ClaimDensity sections={sections} />
                 )}
                 {activeTool === "date" && (
                   <DateChecker data={factCheckData} />

@@ -211,7 +211,7 @@ export function CoopGame({
 
         {/* Tools sidebar */}
         <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
+          <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={localEnergy} max={10} />
           <ArchiveButton
             selectedCount={selectedSections.length}

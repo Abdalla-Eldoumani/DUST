@@ -180,7 +180,7 @@ export function RaceGame({
 
         {/* Tools sidebar */}
         <div className="flex flex-col gap-3 overflow-y-auto">
-          <ToolPanel factCheckData={content.factCheckData} decayProgress={decayProgress} />
+          <ToolPanel factCheckData={content.factCheckData} sections={content.sections} decayProgress={decayProgress} />
           <EnergyBar current={archiveEnergy} max={GAME_CONSTANTS.BASE_ARCHIVE_ENERGY} />
           <ArchiveButton
             selectedCount={selectedSections.length}

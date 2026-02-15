@@ -352,6 +352,7 @@ export default function PlayPage() {
             {/* Tools */}
             <ToolPanel
               factCheckData={page.factCheckData}
+              sections={page.sections}
               decayProgress={store.decayProgress}
               className="flex-1 min-h-[420px]"
             />
