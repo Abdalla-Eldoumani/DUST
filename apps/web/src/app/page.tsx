@@ -6,6 +6,7 @@ import { GlitchText } from "@/components/ui/glitch-text";
 import { GlowText } from "@/components/ui/glow-text";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
 import { ParticleField } from "@/components/ui/particle-field";
+import { FireBarrier } from "@/components/ui/fire-barrier";
 import { Play, BookOpen, Trophy, Info, Users } from "lucide-react";
 import { UserMenu } from "@/components/user-menu";
 
@@ -13,6 +14,7 @@ export default function Home() {
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden bg-void">
       {/* Background layers */}
+      <FireBarrier />
       <ParticleField particleCount={80} />
       <ScanlineOverlay />
 
