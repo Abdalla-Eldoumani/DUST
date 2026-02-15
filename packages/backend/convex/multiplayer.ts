@@ -300,6 +300,30 @@ export const leaveRoom = mutation({
     const isGuest = room.guestClerkId === identity.subject;
     if (!isHost && !isGuest) return;
 
+    // Before a match starts, room membership should be actively cleaned up.
+    if (room.status === "waiting" || room.status === "ready") {
+      if (isHost) {
+        await ctx.db.patch(args.roomId, {
+          status: "finished",
+          hostPresent: false,
+          guestPresent: false,
+          updatedAt: Date.now(),
+        });
+        return;
+      }
+
+      await ctx.db.patch(args.roomId, {
+        guestClerkId: undefined,
+        guestUsername: undefined,
+        guestAvatarUrl: undefined,
+        status: "waiting",
+        hostPresent: true,
+        guestPresent: false,
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+
     // During active gameplay, leaving marks the player absent and allows
     // the remaining player to claim a default win after reconnect grace.
     if (room.status === "playing" || room.status === "roundEnd") {
@@ -311,7 +335,7 @@ export const leaveRoom = mutation({
     }
 
     await ctx.db.patch(args.roomId, {
-      status: "finished",
+      ...(isHost ? { hostPresent: false } : { guestPresent: false }),
       updatedAt: Date.now(),
     });
   },

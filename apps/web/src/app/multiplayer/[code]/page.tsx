@@ -28,7 +28,9 @@ export default function MultiplayerRoomPage({
   const router = useRouter();
   const room = useQuery(api.multiplayer.getRoom, { roomCode: code.toUpperCase() });
   const setPresence = useMutation(api.multiplayer.setPresence);
+  const leaveRoom = useMutation(api.multiplayer.leaveRoom);
   const claimWinByAbandonment = useMutation(api.multiplayer.claimWinByAbandonment);
+  const [leavingLobby, setLeavingLobby] = useState(false);
   const [leaveCountdown, setLeaveCountdown] = useState<number | null>(null);
   const claimTriggeredRef = useRef(false);
 
@@ -129,6 +131,19 @@ export default function MultiplayerRoomPage({
     });
   }, [leaveCountdown, shouldRunReconnectCountdown, room?._id, claimWinByAbandonment]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleBackToLobby = async () => {
+    if (leavingLobby) return;
+    if (room && (room.status === "waiting" || room.status === "ready")) {
+      setLeavingLobby(true);
+      try {
+        await leaveRoom({ roomId: room._id });
+      } catch {
+        // continue navigation even if cleanup fails
+      }
+    }
+    router.push("/multiplayer");
+  };
+
   // Loading
   if (room === undefined) {
     return (
@@ -183,13 +198,15 @@ export default function MultiplayerRoomPage({
         {/* Header (only in non-playing states) */}
         {room.status !== "playing" && (
           <div className="mb-4">
-            <Link
-              href="/multiplayer"
-              className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans"
+            <button
+              type="button"
+              onClick={handleBackToLobby}
+              disabled={leavingLobby}
+              className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans disabled:opacity-60"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Lobby
-            </Link>
+              {leavingLobby ? "Leaving..." : "Back to Lobby"}
+            </button>
           </div>
         )}
 
