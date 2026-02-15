@@ -11,6 +11,7 @@ import { GlitchText } from "@/components/ui/glitch-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
 import { ParticleField } from "@/components/ui/particle-field";
+import { FireBarrier } from "@/components/ui/fire-barrier";
 
 export default function MultiplayerLobby() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function MultiplayerLobby() {
       router.push(`/multiplayer/${roomCode}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create room");
+    } finally {
       setCreating(false);
     }
   };
@@ -45,12 +47,14 @@ export default function MultiplayerLobby() {
       router.push(`/multiplayer/${roomCode}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to join room");
+    } finally {
       setJoining(false);
     }
   };
 
   return (
     <div className="relative min-h-svh bg-void">
+      <FireBarrier />
       <ParticleField particleCount={50} />
       <ScanlineOverlay />
 

@@ -1,0 +1,11 @@
+{
+  "projectId": "calgaryhacks2026",
+  "urls": [
+    {"url": "https://en.wikipedia.org/wiki/Calgary", "tags": ["wiki"]},
+    {"url": "https://www.bbc.com/news", "tags": ["news"]},
+    {"url": "https://blog.mozilla.org/en/", "tags": ["blog"]},
+    {"url": "https://www.nasa.gov/news/all-news/", "tags": ["news", "science"]},
+    {"url": "https://www.smithsonianmag.com/", "tags": ["news", "culture"]}
+  ]
+}
+

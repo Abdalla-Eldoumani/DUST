@@ -8,6 +8,7 @@ import { api } from "@DUST/backend/convex/_generated/api";
 import { GlowText } from "@/components/ui/glow-text";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
 import { ScanlineOverlay } from "@/components/ui/scanline-overlay";
+import { FireBarrier } from "@/components/ui/fire-barrier";
 import { UserRankCard, NoRankCard } from "@/components/leaderboard/user-rank-card";
 import { LeaderboardTable } from "@/components/leaderboard/leaderboard-table";
 
@@ -19,6 +20,7 @@ export default function LeaderboardPage() {
 
   return (
     <div className="relative min-h-svh bg-void">
+      <FireBarrier />
       <ScanlineOverlay />
 
       <div className="relative z-10 mx-auto max-w-3xl px-4 py-8">

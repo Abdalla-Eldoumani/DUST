@@ -16,6 +16,8 @@ interface GameState {
 
   // Level & score
   currentLevel: number;
+  selectedLevelId: string | null;
+  selectedDifficulty: number | null;
   score: number;
   combo: number;
   bestCombo: number;
@@ -39,8 +41,13 @@ interface GameState {
   gameStartedAt: number | null;
   pagesCompleted: number;
 
+  // Convex variant pages loaded for current level
+  levelPages: PageContent[];
+  levelPageIndex: number;
+
   // Actions
   startGame: (demoMode?: boolean) => void;
+  startLevelGame: (levelId: string, difficulty: number, pages: PageContent[]) => void;
   setCurrentPage: (page: PageContent) => void;
   setDecayProgress: (progress: number) => void;
   selectSection: (sectionId: string) => void;
@@ -57,6 +64,8 @@ const initialState = {
   gamePhase: "menu" as GamePhase,
   demoMode: false,
   currentLevel: 1,
+  selectedLevelId: null as string | null,
+  selectedDifficulty: null as number | null,
   score: 0,
   combo: 0,
   bestCombo: 0,
@@ -69,6 +78,8 @@ const initialState = {
   archive: [] as ArchivedItem[],
   gameStartedAt: null as number | null,
   pagesCompleted: 0,
+  levelPages: [] as PageContent[],
+  levelPageIndex: 0,
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -81,6 +92,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       demoMode,
       gameStartedAt: Date.now(),
     }),
+
+  startLevelGame: (levelId, difficulty, pages) => {
+    if (pages.length === 0) return;
+    set({
+      ...initialState,
+      gamePhase: "playing",
+      selectedLevelId: levelId,
+      selectedDifficulty: difficulty,
+      currentLevel: difficulty,
+      gameStartedAt: Date.now(),
+      levelPages: pages,
+      levelPageIndex: 0,
+      currentPage: pages[0]!,
+      decayProgress: 0,
+      selectedSections: [],
+    });
+  },
 
   setCurrentPage: (page) =>
     set({
@@ -188,7 +216,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   revealResults: () => set({ gamePhase: "results" }),
 
   nextPage: (page) => {
-    const { currentLevel, pagesCompleted } = get();
+    const { currentLevel, pagesCompleted, levelPages, levelPageIndex } = get();
     const newLevel = pagesCompleted >= 2 ? currentLevel + 1 : currentLevel;
 
     // Partial energy regen
@@ -205,6 +233,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       maxArchiveEnergy: maxEnergy,
       pagesCompleted: pagesCompleted + 1,
       gamePhase: "playing",
+      // Increment levelPageIndex when playing a Convex level
+      ...(levelPages.length > 0 ? { levelPageIndex: levelPageIndex + 1 } : {}),
     });
   },
 

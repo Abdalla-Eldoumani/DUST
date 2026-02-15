@@ -23,7 +23,8 @@ export const createRoom = mutation({
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .first();
-    if (!user) throw new Error("User not found");
+    const username = user?.username ?? identity.name ?? "Archivist";
+    const avatarUrl = user?.avatarUrl ?? identity.pictureUrl ?? "";
 
     // Generate unique room code
     let roomCode: string;
@@ -43,8 +44,8 @@ export const createRoom = mutation({
       roomCode,
       mode: args.mode,
       hostClerkId: identity.subject,
-      hostUsername: user.username,
-      hostAvatarUrl: user.avatarUrl,
+      hostUsername: username,
+      hostAvatarUrl: avatarUrl,
       status: "waiting",
       currentRound: 0,
       maxRounds: 5,
@@ -70,7 +71,8 @@ export const joinRoom = mutation({
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .first();
-    if (!user) throw new Error("User not found");
+    const username = user?.username ?? identity.name ?? "Archivist";
+    const avatarUrl = user?.avatarUrl ?? identity.pictureUrl ?? "";
 
     const room = await ctx.db
       .query("multiplayerRooms")
@@ -83,8 +85,8 @@ export const joinRoom = mutation({
 
     await ctx.db.patch(room._id, {
       guestClerkId: identity.subject,
-      guestUsername: user.username,
-      guestAvatarUrl: user.avatarUrl,
+      guestUsername: username,
+      guestAvatarUrl: avatarUrl,
       status: "ready",
       updatedAt: Date.now(),
     });

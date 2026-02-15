@@ -112,4 +112,95 @@ export default defineSchema({
   })
     .index("by_roomId", ["roomId"])
     .index("by_roomId_round", ["roomId", "round"]),
+
+  // ---------------------------------------------------------------
+  // Ingestion pipeline tables
+  // ---------------------------------------------------------------
+
+  /**
+   * Scraped page snapshots uploaded by the Python ingestion pipeline.
+   */
+  pages: defineTable({
+    pageId: v.string(),
+    url: v.string(),
+    title: v.string(),
+    capturedAt: v.string(),
+    html: v.string(),
+    elements: v.array(
+      v.object({
+        elementId: v.string(),
+        tag: v.string(),
+        text: v.optional(v.union(v.string(), v.null())),
+        src: v.optional(v.union(v.string(), v.null())),
+        srcset: v.optional(v.union(v.string(), v.null())),
+        alt: v.optional(v.union(v.string(), v.null())),
+        href: v.optional(v.union(v.string(), v.null())),
+        bbox: v.optional(
+          v.union(
+            v.object({
+              x: v.float64(),
+              y: v.float64(),
+              width: v.float64(),
+              height: v.float64(),
+            }),
+            v.null()
+          )
+        ),
+      })
+    ),
+    assets: v.array(
+      v.object({
+        src: v.string(),
+        alt: v.optional(v.union(v.string(), v.null())),
+        srcset: v.optional(v.union(v.string(), v.null())),
+        elementId: v.optional(v.union(v.string(), v.null())),
+      })
+    ),
+    styles: v.array(v.string()),
+    projectId: v.string(),
+    tags: v.array(v.string()),
+  })
+    .index("by_pageId", ["pageId"])
+    .index("by_projectId", ["projectId"]),
+
+  /**
+   * Altered page variants produced by the OpenAI alteration step.
+   */
+  pageVariants: defineTable({
+    variantId: v.string(),
+    pageId: v.string(),
+    levelId: v.string(),
+    difficulty: v.number(),
+    alteredContent: v.string(),
+    fakeMarks: v.array(
+      v.object({
+        kind: v.union(v.literal("FAKE"), v.literal("MISLEADING")),
+        elementId: v.optional(v.union(v.string(), v.null())),
+        snippet: v.string(),
+        explanation: v.string(),
+      })
+    ),
+    projectId: v.string(),
+  })
+    .index("by_pageId", ["pageId"])
+    .index("by_levelId", ["levelId"])
+    .index("by_projectId", ["projectId"]),
+
+  /**
+   * Level definitions with difficulty scaling and page assignments.
+   */
+  levels: defineTable({
+    levelId: v.string(),
+    projectId: v.string(),
+    difficulty: v.number(),
+    pageIds: v.array(v.string()),
+    mutationParams: v.object({
+      fakeRate: v.float64(),
+      subtlety: v.float64(),
+      maxFakeSpans: v.number(),
+    }),
+  })
+    .index("by_levelId_projectId", ["levelId", "projectId"])
+    .index("by_projectId", ["projectId"]),
 });
+

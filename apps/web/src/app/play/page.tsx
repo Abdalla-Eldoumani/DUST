@@ -2,19 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@DUST/backend/convex/_generated/api";
 import { useGameStore } from "@/store/game-store";
 import { useDecayEngine } from "@/lib/decay/decay-engine";
 import { getRandomCachedPage } from "@/lib/content/content-cache";
 import { getDemoPage } from "@/lib/content/demo-content";
 import { getDifficulty } from "@/lib/content/difficulty";
+import { variantToPageContent, type ConvexVariant } from "@/lib/content/convex-adapter";
 
 import { NewsArticle } from "@/components/game/fake-page/news-article";
 import { BlogPost } from "@/components/game/fake-page/blog-post";
 import { SocialThread } from "@/components/game/fake-page/social-thread";
 import { WikiArticle } from "@/components/game/fake-page/wiki-article";
 
+import { LevelSelector } from "@/components/game/level-selector";
 import { DecayTimer } from "@/components/game/decay-timer";
 import { ToolPanel } from "@/components/game/tools/tool-panel";
 import { EnergyBar } from "@/components/game/archive/energy-bar";
@@ -22,15 +24,12 @@ import { ArchiveButton } from "@/components/game/archive/archive-button";
 import { ScoreDisplay } from "@/components/game/scoring/score-display";
 import { RevealScreen } from "@/components/game/scoring/reveal-screen";
 import { GameOverScreen } from "@/components/game/scoring/game-over-screen";
-import { GlitchText } from "@/components/ui/glitch-text";
 import { ParticleField } from "@/components/ui/particle-field";
 
 import type { ArchivedItem, PageContent } from "@/lib/types";
 import { GAME_CONSTANTS } from "@/lib/constants";
-import { ArrowLeft } from "lucide-react";
 
 export default function PlayPage() {
-  const router = useRouter();
   const store = useGameStore();
   const usedIdsRef = useRef<string[]>([]);
   const [timeoutReveal, setTimeoutReveal] = useState<{
@@ -38,6 +37,16 @@ export default function PlayPage() {
     roundScore: number;
   } | null>(null);
   const [screenShake, setScreenShake] = useState(false);
+
+  // Level selection state — set when user picks a level from LevelSelector
+  const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
+  const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
+
+  // Query variants for the selected level (skips when no level selected)
+  const levelVariants = useQuery(
+    api.pageVariants.getByLevelId,
+    pendingLevelId ? { levelId: pendingLevelId } : "skip"
+  );
 
   const difficulty = useMemo(
     () => getDifficulty(store.currentLevel),
@@ -49,9 +58,21 @@ export default function PlayPage() {
     onProgress: store.setDecayProgress,
   });
 
-  // Load first page when game starts
+  // When variants arrive for a pending level, convert and start the game
   useEffect(() => {
-    if (store.gamePhase === "loading") {
+    if (pendingLevelId && levelVariants && levelVariants.length > 0) {
+      const pages = levelVariants.map((v) =>
+        variantToPageContent(v as unknown as ConvexVariant)
+      );
+      store.startLevelGame(pendingLevelId, pendingDifficulty, pages);
+      setPendingLevelId(null);
+      setPendingDifficulty(1);
+    }
+  }, [levelVariants, pendingLevelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load first page when game starts (quick play / demo mode — no level selected)
+  useEffect(() => {
+    if (store.gamePhase === "loading" && !pendingLevelId) {
       const page = store.demoMode
         ? getDemoPage(0)
         : getRandomCachedPage(usedIdsRef.current, store.currentLevel);
@@ -131,6 +152,18 @@ export default function PlayPage() {
   const handleNextPage = useCallback(() => {
     setTimeoutReveal(null);
 
+    // If playing a selected level, use pre-loaded levelPages
+    if (store.levelPages.length > 0) {
+      const nextIndex = store.levelPageIndex + 1;
+      if (nextIndex >= store.levelPages.length) {
+        store.endGame();
+        return;
+      }
+      const nextPage = store.levelPages[nextIndex]!;
+      store.nextPage(nextPage);
+      return;
+    }
+
     // Demo mode: 5 curated pages; normal mode: 5 random pages
     const totalPages = store.demoMode ? 5 : 5;
     if (store.pagesCompleted >= totalPages - 1) {
@@ -148,53 +181,30 @@ export default function PlayPage() {
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
     setTimeoutReveal(null);
-    store.startGame();
+    setPendingLevelId(null);
+    setPendingDifficulty(1);
+    store.resetGame();
   }, [store]);
-
-  const handleViewLeaderboard = useCallback(() => {
-    router.push("/leaderboard");
-  }, [router]);
 
   // ─── MENU STATE ───
   if (store.gamePhase === "menu") {
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center relative">
-        <ParticleField particleCount={40} />
-        <div className="relative z-10 w-full max-w-4xl px-6 text-center">
-          <GlitchText
-            text="SOLO PLAYER"
-            intensity="low"
-            interval={6000}
-            className="font-mono text-5xl font-bold tracking-[0.12em] text-scan md:text-7xl"
-          />
-          <p className="mx-auto mb-12 mt-4 max-w-2xl font-serif text-base leading-relaxed text-text-secondary md:text-xl">
-            Analyze web pages for misinformation. Archive the truth before it
-            decays.
-          </p>
-
-          <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5">
-            <button
-              onClick={() => store.startGame(false)}
-              className="w-full px-8 py-5 font-mono text-2xl uppercase tracking-wider bg-archive/10 text-archive border border-archive/30 hover:bg-archive/20 transition-colors"
-            >
-              Start Game
-            </button>
-            <button
-              onClick={() => store.startGame(true)}
-              className="w-full px-8 py-5 font-mono text-2xl uppercase tracking-wider bg-scan/10 text-scan border border-scan/30 hover:bg-scan/20 transition-colors"
-            >
-              Demo Mode
-            </button>
-            <Link
-              href="/"
-              className="mt-4 flex items-center gap-2 text-lg text-text-ghost hover:text-text-secondary transition-colors font-sans md:text-xl"
-            >
-              <ArrowLeft className="h-5 w-5" />
-              Back to Menu
-            </Link>
-          </div>
-        </div>
-      </div>
+      <LevelSelector
+        onSelectLevel={(levelId, difficulty) => {
+          setPendingLevelId(levelId);
+          setPendingDifficulty(difficulty);
+        }}
+        onQuickPlay={() => {
+          setPendingLevelId(null);
+          setPendingDifficulty(1);
+          store.startGame(false);
+        }}
+        onDemoMode={() => {
+          setPendingLevelId(null);
+          setPendingDifficulty(1);
+          store.startGame(true);
+        }}
+      />
     );
   }
 
@@ -205,7 +215,7 @@ export default function PlayPage() {
         result={store.lastGameResult}
         onPlayAgain={handlePlayAgain}
         onGoHome={() => (window.location.href = "/")}
-        onViewLeaderboard={handleViewLeaderboard}
+        onViewLeaderboard={() => (window.location.href = "/leaderboard")}
       />
     );
   }
@@ -393,12 +403,12 @@ export default function PlayPage() {
       <AnimatePresence>
         {store.gamePhase === "revealing" &&
           (timeoutReveal !== null || latestItems.length > 0) && (
-          <RevealScreen
-            items={revealItems}
-            roundScore={revealRoundScore}
-            combo={store.combo}
-            onContinue={handleNextPage}
-          />
+            <RevealScreen
+              items={revealItems}
+              roundScore={revealRoundScore}
+              combo={store.combo}
+              onContinue={handleNextPage}
+            />
           )}
       </AnimatePresence>
     </motion.div>
