@@ -67,11 +67,7 @@ export default function LeaderboardPage() {
                 router.push("/play");
                 return;
               }
-              if (window.history.length > 1) {
-                router.back();
-              } else {
-                router.push("/");
-              }
+              router.push("/");
             }}
             className="inline-flex items-center gap-1.5 text-sm text-text-ghost hover:text-text-secondary transition-colors font-sans mb-4"
           >
@@ -102,22 +98,20 @@ export default function LeaderboardPage() {
           <button
             type="button"
             onClick={() => setMode("solo")}
-            className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border transition-colors ${
-              mode === "solo"
+            className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border transition-colors ${mode === "solo"
                 ? "border-archive/40 text-archive bg-archive/10"
                 : "border-white/10 text-text-ghost hover:text-text-secondary"
-            }`}
+              }`}
           >
             Solo
           </button>
           <button
             type="button"
             onClick={() => setMode("coop")}
-            className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border transition-colors ${
-              mode === "coop"
+            className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border transition-colors ${mode === "coop"
                 ? "border-archive/40 text-archive bg-archive/10"
                 : "border-white/10 text-text-ghost hover:text-text-secondary"
-            }`}
+              }`}
           >
             Co-op
           </button>
@@ -132,11 +126,10 @@ export default function LeaderboardPage() {
                   key={current}
                   type="button"
                   onClick={() => setLevel(current)}
-                  className={`px-2.5 py-1 font-mono text-xs border transition-colors ${
-                    level === current
+                  className={`px-2.5 py-1 font-mono text-xs border transition-colors ${level === current
                       ? "border-scan/50 text-scan bg-scan/10"
                       : "border-white/10 text-text-ghost hover:text-text-secondary"
-                  }`}
+                    }`}
                 >
                   L{current}
                 </button>

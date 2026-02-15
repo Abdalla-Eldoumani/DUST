@@ -159,9 +159,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   archiveSelected: () => {
-    const { selectedSections, currentPage, decayProgress, currentLevel } =
+    const { selectedSections, currentPage, decayProgress, currentLevel, archiveEnergy } =
       get();
-    if (!currentPage || selectedSections.length === 0) return;
+    if (!currentPage || selectedSections.length === 0 || archiveEnergy > 0) return;
 
     set({ gamePhase: "revealing" });
 

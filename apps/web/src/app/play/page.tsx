@@ -20,7 +20,7 @@ import { WikiArticle } from "@/components/game/fake-page/wiki-article";
 
 import { LevelSelector } from "@/components/game/level-selector";
 import { DecayTimer } from "@/components/game/decay-timer";
-import { ToolPanel } from "@/components/game/tools/tool-panel";
+import { ToolPanel, type LifelineStatus } from "@/components/game/tools/tool-panel";
 import { EnergyBar } from "@/components/game/archive/energy-bar";
 import { ArchiveButton } from "@/components/game/archive/archive-button";
 import { ScoreDisplay } from "@/components/game/scoring/score-display";
@@ -47,6 +47,8 @@ export default function PlayPage() {
   // Level selection state — set when user picks a level from LevelSelector
   const [pendingLevelId, setPendingLevelId] = useState<string | null>(null);
   const [pendingDifficulty, setPendingDifficulty] = useState<number>(1);
+  const [purgedSectionIds, setPurgedSectionIds] = useState<string[]>([]);
+  const [lifelines, setLifelines] = useState<LifelineStatus>(createInitialLifelines());
   const [levelError, setLevelError] = useState<string | null>(null);
 
   // Query variants for the selected level (skips when no level selected)
@@ -141,6 +143,13 @@ export default function PlayPage() {
     }
   }, [store.gamePhase, store.currentPage?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Per-page lifelines reset on each new page
+  useEffect(() => {
+    if (!store.currentPage) return;
+    setPurgedSectionIds([]);
+    setLifelines(createInitialLifelines());
+  }, [store.currentPage?.id]);
+
   // Screen shake when decay crosses 75%
   useEffect(() => {
     if (store.decayProgress >= 0.75 && store.decayProgress < 0.78 && store.gamePhase === "playing") {
@@ -170,7 +179,7 @@ export default function PlayPage() {
     if (freshState.gamePhase !== "playing") return;
     hasTimedOutRef.current = true;
 
-    if (freshState.selectedSections.length > 0) {
+    if (freshState.selectedSections.length > 0 && freshState.archiveEnergy === 0) {
       handleArchive();
     } else {
       handleTimeoutWithoutArchive();
@@ -179,16 +188,91 @@ export default function PlayPage() {
 
   const handleSectionSelect = useCallback(
     (sectionId: string) => {
+      if (purgedSectionIds.includes(sectionId)) return;
+
+      const section = store.currentPage?.sections.find((s) => s.id === sectionId);
+      if (!section) return;
+
+      if (lifelines.verifyArmed) {
+        setLifelines((prev) => ({
+          ...prev,
+          verifyUsed: true,
+          verifyArmed: false,
+          lastVerifyResult: {
+            sectionText: shorten(section.text),
+            isTrue: section.isTrue,
+          },
+        }));
+        return;
+      }
+
       if (store.selectedSections.includes(sectionId)) {
         store.deselectSection(sectionId);
       } else {
+        const beforeCount = useGameStore.getState().selectedSections.length;
         store.selectSection(sectionId);
+        const afterCount = useGameStore.getState().selectedSections.length;
+
+        if (lifelines.freezeActive && afterCount > beforeCount) {
+          decayEngine.resume();
+          setLifelines((prev) => ({ ...prev, freezeActive: false }));
+        }
       }
     },
-    [store]
+    [store, purgedSectionIds, lifelines.verifyArmed, lifelines.freezeActive, decayEngine]
   );
 
+  const handleUseVerify = useCallback(() => {
+    if (lifelines.verifyUsed) return;
+    setLifelines((prev) => ({
+      ...prev,
+      verifyArmed: true,
+      lastVerifyResult: null,
+    }));
+  }, [lifelines.verifyUsed]);
+
+  const handleUseFreeze = useCallback(() => {
+    if (lifelines.freezeUsed) return;
+    decayEngine.pause();
+    setLifelines((prev) => ({
+      ...prev,
+      freezeUsed: true,
+      freezeActive: true,
+    }));
+  }, [lifelines.freezeUsed, decayEngine]);
+
+  const handleUsePurge = useCallback(() => {
+    if (lifelines.purgeUsed || !store.currentPage) return;
+
+    const candidates = store.currentPage.sections.filter(
+      (section) =>
+        !section.isTrue &&
+        !purgedSectionIds.includes(section.id)
+    );
+
+    if (candidates.length === 0) {
+      setLifelines((prev) => ({
+        ...prev,
+        lastPurgedText: "No incorrect sections available to purge.",
+      }));
+      return;
+    }
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)]!;
+
+    if (store.selectedSections.includes(chosen.id)) {
+      store.deselectSection(chosen.id);
+    }
+
+    setPurgedSectionIds((prev) => [...prev, chosen.id]);
+    setLifelines((prev) => ({
+      ...prev,
+      purgeUsed: true,
+      lastPurgedText: shorten(chosen.text),
+    }));
+  }, [lifelines.purgeUsed, store, purgedSectionIds]);
+
   const handleArchive = useCallback(() => {
+    if (store.archiveEnergy > 0) return;
     decayEngine.pause();
     setTimeoutReveal(null);
     store.archiveSelected();
@@ -224,7 +308,7 @@ export default function PlayPage() {
     // If playing a selected level, use pre-loaded levelPages
     if (store.levelPages.length > 0) {
       const nextIndex = store.levelPageIndex + 1;
-      console.log("NEXTINDEX:",nextIndex)
+      console.log("NEXTINDEX:", nextIndex)
       console.log("LEVELPAGES:", store.levelPages.length)
       if (nextIndex >= store.levelPages.length) {
         store.endGame();
@@ -252,6 +336,8 @@ export default function PlayPage() {
   const handlePlayAgain = useCallback(() => {
     usedIdsRef.current = [];
     setTimeoutReveal(null);
+    setPurgedSectionIds([]);
+    setLifelines(createInitialLifelines());
     const { demoMode, selectedLevelId, selectedDifficulty } = useGameStore.getState();
 
     if (selectedLevelId) {
@@ -270,6 +356,8 @@ export default function PlayPage() {
   const handleLeaveGame = useCallback(() => {
     decayEngine.pause();
     setTimeoutReveal(null);
+    setPurgedSectionIds([]);
+    setLifelines(createInitialLifelines());
     store.resetGame();
   }, [decayEngine, store]);
 
@@ -355,6 +443,10 @@ export default function PlayPage() {
 
   // ─── MAIN GAMEPLAY ───
   const page = store.currentPage;
+  const visibleSections = page.sections.filter(
+    (section) => !purgedSectionIds.includes(section.id)
+  );
+  const renderPage: PageContent = { ...page, sections: visibleSections };
   const FakePageComponent = getFakePageComponent(page.contentType);
   const latestItems =
     store.selectedSections.length > 0
@@ -438,7 +530,7 @@ export default function PlayPage() {
               className="h-full"
             >
               <FakePageComponent
-                content={page}
+                content={renderPage}
                 decayProgress={store.decayProgress}
                 selectedSections={store.selectedSections}
                 onSelectSection={
@@ -454,10 +546,12 @@ export default function PlayPage() {
           <div className="flex flex-1 flex-col gap-4 p-3 min-h-0 overflow-y-auto">
             {/* Tools */}
             <ToolPanel
-              factCheckData={page.factCheckData}
-              sections={page.sections}
               decayProgress={store.decayProgress}
               className="min-h-0 flex-1"
+              lifelineStatus={lifelines}
+              onUseVerify={handleUseVerify}
+              onUseFreeze={handleUseFreeze}
+              onUsePurge={handleUsePurge}
             />
 
             {/* Energy */}
@@ -471,9 +565,11 @@ export default function PlayPage() {
             {/* Hint */}
             <div className="px-1 pb-1">
               <p className="font-sans text-sm leading-relaxed text-text-ghost">
-                {store.selectedSections.length === 0
-                  ? "Click sections in the page to mark them for archiving."
-                  : `${store.selectedSections.length} section${store.selectedSections.length > 1 ? "s" : ""} selected. Use tools to verify before archiving.`}
+                {lifelines.verifyArmed
+                  ? "Verify is armed. Click one section to reveal whether it is true."
+                  : store.archiveEnergy > 0
+                    ? `Use all archive energy before archiving (${store.archiveEnergy} remaining).`
+                    : `${store.selectedSections.length} section${store.selectedSections.length > 1 ? "s" : ""} selected. Ready to archive.`}
               </p>
             </div>
           </div>
@@ -484,8 +580,10 @@ export default function PlayPage() {
               selectedCount={store.selectedSections.length}
               disabled={
                 store.selectedSections.length === 0 ||
+                store.archiveEnergy > 0 ||
                 store.gamePhase !== "playing"
               }
+              energyRemaining={store.archiveEnergy}
               onArchive={handleArchive}
             />
           </div>
@@ -532,4 +630,21 @@ function getFakePageComponent(contentType: PageContent["contentType"]) {
     default:
       return NewsArticle;
   }
+}
+
+function createInitialLifelines(): LifelineStatus {
+  return {
+    verifyUsed: false,
+    verifyArmed: false,
+    freezeUsed: false,
+    freezeActive: false,
+    purgeUsed: false,
+    lastVerifyResult: null,
+    lastPurgedText: null,
+  };
+}
+
+function shorten(text: string, limit = 180): string {
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit).trimEnd()}...`;
 }

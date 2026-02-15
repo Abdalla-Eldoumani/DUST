@@ -8,13 +8,17 @@ interface ArchiveButtonProps {
   selectedCount: number;
   disabled: boolean;
   onArchive: () => void;
+  energyRemaining?: number;
 }
 
 export function ArchiveButton({
   selectedCount,
   disabled,
   onArchive,
+  energyRemaining = 0,
 }: ArchiveButtonProps) {
+  const requiresMoreEnergy = disabled && energyRemaining > 0;
+
   return (
     <motion.button
       onClick={onArchive}
@@ -45,9 +49,11 @@ export function ArchiveButton({
     >
       <Archive className="h-4 w-4" />
       <span>
-        {selectedCount > 0
-          ? `Archive ${selectedCount} Section${selectedCount > 1 ? "s" : ""}`
-          : "Select Sections to Archive"}
+        {requiresMoreEnergy
+          ? `Use ${energyRemaining} Energy First`
+          : selectedCount > 0
+            ? `Archive ${selectedCount} Section${selectedCount > 1 ? "s" : ""}`
+            : "Select Sections to Archive"}
       </span>
     </motion.button>
   );

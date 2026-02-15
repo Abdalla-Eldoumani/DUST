@@ -1,112 +1,144 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { CheckCircle2, ShieldCheck, Snowflake, Sparkles, Trash2, XCircle } from "lucide-react";
 import { TerminalPanel } from "@/components/ui/terminal-panel";
-import { DateChecker } from "./date-checker";
-import { CrossReference } from "./cross-reference";
-import { SentimentAnalyzer } from "./sentiment-analyzer";
-import type { FactCheckData, PageSection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Calendar, GitCompare, Brain } from "lucide-react";
+
+export interface LifelineStatus {
+  verifyUsed: boolean;
+  verifyArmed: boolean;
+  freezeUsed: boolean;
+  freezeActive: boolean;
+  purgeUsed: boolean;
+  lastVerifyResult?: {
+    sectionText: string;
+    isTrue: boolean;
+  } | null;
+  lastPurgedText?: string | null;
+}
 
 interface ToolPanelProps {
-  factCheckData: FactCheckData | null;
-  sections: PageSection[];
   decayProgress: number;
   className?: string;
+  lifelineStatus?: LifelineStatus;
+  onUseVerify?: () => void;
+  onUseFreeze?: () => void;
+  onUsePurge?: () => void;
+  // Legacy props kept optional for compatibility with existing callsites.
+  factCheckData?: unknown;
+  sections?: unknown;
   selectedSectionId?: string | null;
 }
 
-type ToolId = "date" | "cross-ref" | "sentiment";
-
-const TOOLS = [
-  {
-    id: "date" as ToolId,
-    label: "Date Checker",
-    hint: "Validate timeline consistency and chronology.",
-    icon: Calendar,
-  },
-  {
-    id: "cross-ref" as ToolId,
-    label: "Cross-Reference",
-    hint: "Compare claims against known supporting facts.",
-    icon: GitCompare,
-  },
-  {
-    id: "sentiment" as ToolId,
-    label: "Sentiment Analyzer",
-    hint: "Detect emotional manipulation and bias signals.",
-    icon: Brain,
-  },
-];
+const DEFAULT_STATUS: LifelineStatus = {
+  verifyUsed: false,
+  verifyArmed: false,
+  freezeUsed: false,
+  freezeActive: false,
+  purgeUsed: false,
+  lastVerifyResult: null,
+  lastPurgedText: null,
+};
 
 export function ToolPanel({
-  factCheckData,
-  sections,
   decayProgress,
   className,
-  selectedSectionId,
+  lifelineStatus,
+  onUseVerify,
+  onUseFreeze,
+  onUsePurge,
 }: ToolPanelProps) {
-  const selectedSection = selectedSectionId && sections
-    ? sections.find((s) => s.id === selectedSectionId)
-    : null;
-  const [activeTool, setActiveTool] = useState<ToolId | null>(null);
-  const [usedTools, setUsedTools] = useState<Set<ToolId>>(new Set());
+  const status = lifelineStatus ?? DEFAULT_STATUS;
+  const hasLifelineActions = Boolean(onUseVerify || onUseFreeze || onUsePurge);
 
-  const handleToolClick = (toolId: ToolId) => {
-    if (activeTool === toolId) {
-      setActiveTool(null);
-    } else {
-      setActiveTool(toolId);
-      setUsedTools((prev) => new Set(prev).add(toolId));
-    }
-  };
+  const verifyDisabled = status.verifyUsed || !onUseVerify;
+  const freezeDisabled = status.freezeUsed || !onUseFreeze;
+  const purgeDisabled = status.purgeUsed || !onUsePurge;
 
   return (
     <TerminalPanel
-      title="ANALYSIS TOOLS"
+      title="LIFELINES"
       variant="compact"
       glowColor="cyan"
       className={className}
     >
       <div className="flex min-h-0 flex-col">
-        {/* Tool buttons */}
         <div className="space-y-2">
-          {TOOLS.map(({ id, label, hint, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => handleToolClick(id)}
-              className={cn(
-                "w-full min-h-[62px] border p-2.5 text-left transition-all",
-                activeTool === id
+          <button
+            onClick={onUseVerify}
+            disabled={verifyDisabled}
+            className={cn(
+              "w-full min-h-[62px] border p-2.5 text-left transition-all",
+              verifyDisabled
+                ? "cursor-not-allowed bg-elevated/15 border-white/5 text-text-ghost/50"
+                : status.verifyArmed
                   ? "bg-scan/10 border-scan/35 text-scan"
-                  : usedTools.has(id)
-                    ? "bg-elevated/30 border-white/10 text-text-secondary"
-                    : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary hover:border-white/15"
-              )}
-            >
-              <div className="flex items-start gap-2.5">
-                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-mono text-[11px] uppercase tracking-wide">
-                    {label}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs font-sans leading-snug",
-                      activeTool === id
-                        ? "text-scan/90"
-                        : "text-text-ghost"
-                    )}
-                  >
-                    {hint}
-                  </p>
-                </div>
+                  : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary hover:border-white/15"
+            )}
+          >
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-wide">
+                  Verify {status.verifyUsed ? "• Used" : ""}
+                </p>
+                <p className="mt-1 text-xs font-sans leading-snug text-text-ghost">
+                  Reveal whether one section is legit or fabricated.
+                </p>
               </div>
-            </button>
-          ))}
+            </div>
+          </button>
+
+          <button
+            onClick={onUseFreeze}
+            disabled={freezeDisabled}
+            className={cn(
+              "w-full min-h-[62px] border p-2.5 text-left transition-all",
+              freezeDisabled
+                ? "cursor-not-allowed bg-elevated/15 border-white/5 text-text-ghost/50"
+                : status.freezeActive
+                  ? "bg-archive/10 border-archive/35 text-archive"
+                  : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary hover:border-white/15"
+            )}
+          >
+            <div className="flex items-start gap-2.5">
+              <Snowflake className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-wide">
+                  Freeze {status.freezeUsed ? "• Used" : ""}
+                </p>
+                <p className="mt-1 text-xs font-sans leading-snug text-text-ghost">
+                  Pause decay until you select any section.
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={onUsePurge}
+            disabled={purgeDisabled}
+            className={cn(
+              "w-full min-h-[62px] border p-2.5 text-left transition-all",
+              purgeDisabled
+                ? "cursor-not-allowed bg-elevated/15 border-white/5 text-text-ghost/50"
+                : "bg-elevated/20 border-white/5 text-text-ghost hover:text-text-secondary hover:border-white/15"
+            )}
+          >
+            <div className="flex items-start gap-2.5">
+              <Trash2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-wide">
+                  Purge {status.purgeUsed ? "• Used" : ""}
+                </p>
+                <p className="mt-1 text-xs font-sans leading-snug text-text-ghost">
+                  Remove one incorrect section from the page.
+                </p>
+              </div>
+            </div>
+          </button>
         </div>
+
         <p
           className={cn(
             "mt-2 font-mono text-[11px] uppercase tracking-wide",
@@ -116,65 +148,84 @@ export function ToolPanel({
           Integrity remaining: {Math.max(0, Math.round((1 - decayProgress) * 100))}%
         </p>
 
-        {/* Analysis details block lives between tools and Archive Energy */}
         <div className="mt-3 border-t border-white/5 pt-3">
           <div className="border border-white/10 bg-elevated/10 px-3 py-3">
             <AnimatePresence mode="wait" initial={false}>
-              {activeTool ? (
-                <motion.div
-                  key={activeTool}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {factCheckData ? (
-                    <>
-                      {activeTool === "date" && (
-                        <DateChecker data={factCheckData} />
-                      )}
-                      {activeTool === "cross-ref" && (
-                        <CrossReference data={factCheckData} />
-                      )}
-                      {activeTool === "sentiment" && (
-                        <SentimentAnalyzer data={factCheckData} />
-                      )}
+              <motion.div
+                key={`${status.verifyArmed}-${status.freezeActive}-${status.lastVerifyResult?.sectionText ?? "none"}-${status.lastPurgedText ?? "none"}-${hasLifelineActions}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-2"
+              >
+                {!hasLifelineActions && (
+                  <p className="text-sm text-text-ghost font-sans">
+                    Lifelines are active in solo mode.
+                  </p>
+                )}
 
-                      {/* Per-section analysis hint */}
-                      {selectedSection && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="mt-2 border border-white/5 bg-elevated/20 p-2"
-                        >
-                          <p className="mb-1 font-mono text-[10px] text-text-ghost uppercase tracking-wider">
-                            Section Analysis
-                          </p>
-                          <p className="font-sans text-xs text-text-secondary leading-relaxed">
-                            {activeTool === "date" && (selectedSection.dateIssue || "No date inconsistencies found.")}
-                            {activeTool === "cross-ref" && (selectedSection.crossRefIssue || "No cross-reference conflicts found.")}
-                            {activeTool === "sentiment" && (selectedSection.emotionalLanguage || "Language appears neutral.")}
-                          </p>
-                        </motion.div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-text-ghost font-sans">
-                      Analysis data is unavailable for this page.
+                {hasLifelineActions && !status.verifyArmed && !status.freezeActive && !status.lastVerifyResult && !status.lastPurgedText && (
+                  <p className="text-sm text-text-ghost font-sans">
+                    Use each lifeline once to gain an edge.
+                  </p>
+                )}
+
+                {status.verifyArmed && (
+                  <div className="flex items-start gap-2 text-scan">
+                    <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p className="text-sm font-sans">
+                      Verify armed. Click one section to reveal whether it is legit.
                     </p>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.p
-                  key="empty-analysis"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-sm text-text-ghost font-sans"
-                >
-                  Select a tool to view analysis details.
-                </motion.p>
-              )}
+                  </div>
+                )}
+
+                {status.freezeActive && (
+                  <div className="flex items-start gap-2 text-archive">
+                    <Snowflake className="h-4 w-4 shrink-0 mt-0.5" />
+                    <p className="text-sm font-sans">
+                      Decay is frozen until you select a section.
+                    </p>
+                  </div>
+                )}
+
+                {status.lastVerifyResult && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      {status.lastVerifyResult.isTrue ? (
+                        <CheckCircle2 className="h-4 w-4 text-archive" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-decay" />
+                      )}
+                      <span
+                        className={cn(
+                          "font-mono text-[11px] uppercase tracking-wide",
+                          status.lastVerifyResult.isTrue ? "text-archive" : "text-decay"
+                        )}
+                      >
+                        {status.lastVerifyResult.isTrue ? "Verified Legit" : "Verified False"}
+                      </span>
+                    </div>
+                    <p className="text-xs font-sans text-text-secondary leading-relaxed">
+                      {status.lastVerifyResult.sectionText}
+                    </p>
+                  </div>
+                )}
+
+                {status.lastPurgedText && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <Trash2 className="h-4 w-4 text-amber" />
+                      <span className="font-mono text-[11px] uppercase tracking-wide text-amber">
+                        Purged False Section
+                      </span>
+                    </div>
+                    <p className="text-xs font-sans text-text-secondary leading-relaxed">
+                      {status.lastPurgedText}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
             </AnimatePresence>
           </div>
         </div>
