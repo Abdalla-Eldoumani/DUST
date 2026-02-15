@@ -31,7 +31,7 @@ export RETRIES="2"
 ### One-command run
 
 ```bash
-python -m dust_ingest build --input urls.json --project "calgaryhacks2026" --levels 10
+py -m dust_ingest build --input dust_ingest\urls.example.json --project calgaryhacks2026 --levels 10
 ```
 
 ### Input file format
