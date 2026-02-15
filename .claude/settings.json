@@ -1,0 +1,67 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(cd *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(echo *)",
+      "Bash(touch *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git push *)",
+      "Bash(node *)",
+      "Bash(tsx *)",
+      "Bash(tsc *)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Verify TypeScript after file changes\ncd $(git rev-parse --show-toplevel) && npx tsc --noEmit --pretty 2>&1 | tail -20 || true"
+          }
+        ]
+      }
+    ],
+    "PreCommit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Lint check before commits\ncd $(git rev-parse --show-toplevel)/apps/web && npx next lint --quiet 2>&1 | tail -10 || true"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "FORCE_COLOR": "1",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "model": "opus",
+  "contextFiles": [
+    "CLAUDE.md",
+    "TASKS.md"
+  ]
+}
