@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { use, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { api } from "@DUST/backend/convex/_generated/api";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
@@ -24,7 +25,28 @@ export default function MultiplayerRoomPage({
 }) {
   const { code } = use(params);
   const { user } = useUser();
+  const router = useRouter();
   const room = useQuery(api.multiplayer.getRoom, { roomCode: code.toUpperCase() });
+
+  // Lock body scroll during gameplay
+  useEffect(() => {
+    if (room?.status === "playing") {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [room?.status]);
+
+  // Redirect to rematch room when it's created
+  useEffect(() => {
+    if (
+      room &&
+      room.status === "finished" &&
+      room.rematchRoomCode &&
+      room.rematchRoomCode !== code.toUpperCase()
+    ) {
+      router.push(`/multiplayer/${room.rematchRoomCode}`);
+    }
+  }, [room?.status, room?.rematchRoomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isHost = useMemo(
     () => room?.hostClerkId === user?.id,
@@ -85,8 +107,8 @@ export default function MultiplayerRoomPage({
   // Render based on room status
   return (
     <div className="relative min-h-svh bg-void">
-      <ParticleField particleCount={30} />
-      <ScanlineOverlay />
+      {room.status !== "playing" && <ParticleField particleCount={30} />}
+      {room.status !== "playing" && <ScanlineOverlay />}
 
       <div className="relative z-10 mx-auto max-w-5xl px-4 py-4 min-h-svh flex flex-col">
         {/* Header (only in non-playing states) */}

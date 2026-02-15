@@ -22,6 +22,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         className={`${spaceMono.variable} ${newsreader.variable} ${dmSans.variable} antialiased`}
+        suppressHydrationWarning
       >
         <ClerkProvider appearance={{ baseTheme: dark }}>
           <Providers>

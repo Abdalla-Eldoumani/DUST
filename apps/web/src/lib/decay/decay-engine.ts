@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { DecayCurve } from "@/lib/constants";
+import { applyDecayCurve } from "@/lib/content/difficulty";
 
 type MilestoneCallback = () => void;
 
 interface DecayEngineOptions {
   duration: number; // Total decay time in seconds
+  curve?: DecayCurve; // Decay acceleration curve
   onProgress?: (progress: number) => void;
 }
 
@@ -17,7 +20,7 @@ interface DecayEngineOptions {
  * and milestone callbacks at 25%, 50%, 75%, 100%.
  */
 export function useDecayEngine(options: DecayEngineOptions) {
-  const { duration, onProgress } = options;
+  const { duration, curve, onProgress } = options;
   const [progress, setProgress] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -33,7 +36,8 @@ export function useDecayEngine(options: DecayEngineOptions) {
     if (!startTimeRef.current) return;
 
     const elapsed = performance.now() - startTimeRef.current + pausedAtRef.current;
-    const p = Math.min(elapsed / durationMs, 1);
+    const rawP = Math.min(elapsed / durationMs, 1);
+    const p = curve ? applyDecayCurve(rawP, curve) : rawP;
 
     setProgress(p);
     onProgress?.(p);
@@ -46,12 +50,12 @@ export function useDecayEngine(options: DecayEngineOptions) {
       }
     }
 
-    if (p < 1) {
+    if (rawP < 1) {
       rafRef.current = requestAnimationFrame(tick);
     } else {
       setIsRunning(false);
     }
-  }, [durationMs, onProgress]);
+  }, [durationMs, curve, onProgress]);
 
   const start = useCallback(() => {
     firedMilestonesRef.current.clear();

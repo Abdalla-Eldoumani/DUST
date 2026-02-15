@@ -144,7 +144,8 @@ export const submitAction = mutation({
       v.literal("archive"),
       v.literal("useTools"),
       v.literal("ping"),
-      v.literal("ready")
+      v.literal("ready"),
+      v.literal("select")
     ),
     data: v.optional(v.string()),
   },
@@ -299,5 +300,111 @@ export const updateSharedEnergy = mutation({
       sharedEnergy: args.energy,
       updatedAt: Date.now(),
     });
+  },
+});
+
+export const getCoopSelections = query({
+  args: {
+    roomId: v.id("multiplayerRooms"),
+    round: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const actions = await ctx.db
+      .query("multiplayerActions")
+      .withIndex("by_roomId_round", (q) =>
+        q.eq("roomId", args.roomId).eq("round", args.round)
+      )
+      .collect();
+
+    // Build a toggle map: each "select" action toggles that section
+    const toggleCounts = new Map<string, { clerkId: string; count: number }>();
+    for (const action of actions) {
+      if (action.action !== "select" || !action.data) continue;
+      try {
+        const { sectionId, playerId } = JSON.parse(action.data) as {
+          sectionId: string;
+          playerId: string;
+        };
+        const key = `${playerId}:${sectionId}`;
+        const existing = toggleCounts.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          toggleCounts.set(key, { clerkId: playerId, count: 1 });
+        }
+      } catch {
+        // skip malformed data
+      }
+    }
+
+    // Odd count = selected, even count = deselected
+    const selections: { sectionId: string; playerId: string }[] = [];
+    for (const [key, { clerkId, count }] of toggleCounts.entries()) {
+      if (count % 2 === 1) {
+        const sectionId = key.split(":").slice(1).join(":");
+        selections.push({ sectionId, playerId: clerkId });
+      }
+    }
+
+    return selections;
+  },
+});
+
+export const rematch = mutation({
+  args: {
+    roomId: v.id("multiplayerRooms"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Must be logged in");
+
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.status !== "finished") throw new Error("Game is not finished");
+
+    // Generate new room code
+    let roomCode: string;
+    let attempts = 0;
+    do {
+      roomCode = "";
+      for (let i = 0; i < 6; i++) {
+        roomCode += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+      }
+      const existing = await ctx.db
+        .query("multiplayerRooms")
+        .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+        .first();
+      if (!existing) break;
+      attempts++;
+    } while (attempts < 10);
+
+    const now = Date.now();
+    const newRoomId = await ctx.db.insert("multiplayerRooms", {
+      roomCode,
+      mode: room.mode,
+      hostClerkId: room.hostClerkId,
+      guestClerkId: room.guestClerkId,
+      hostUsername: room.hostUsername,
+      guestUsername: room.guestUsername,
+      hostAvatarUrl: room.hostAvatarUrl,
+      guestAvatarUrl: room.guestAvatarUrl,
+      status: "ready",
+      currentRound: 0,
+      maxRounds: room.maxRounds,
+      hostScore: 0,
+      guestScore: 0,
+      sharedEnergy: room.mode === "coop" ? 10 : undefined,
+      sharedScore: room.mode === "coop" ? 0 : undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Update old room with rematch pointer
+    await ctx.db.patch(args.roomId, {
+      rematchRoomCode: roomCode,
+      updatedAt: now,
+    });
+
+    return { roomId: newRoomId, roomCode };
   },
 });

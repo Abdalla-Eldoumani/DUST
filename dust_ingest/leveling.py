@@ -1,18 +1,24 @@
-"""Level generation — distribute pages into 10 levels of increasing difficulty.
+"""Level generation — distribute pages across levels with scaling capacity.
 
-Computes a per-page complexity score, sorts by complexity, and distributes
-them across levels respecting a cap: level *d* can hold at most *d* pages
-(level 1 → max 1, level 2 → max 2, … level 10 → max 10; total capacity 55).
+Pages are assigned to levels in URL-order.  Level capacity scales with
+difficulty::
 
-When fewer than ``num_levels`` pages exist, levels that receive 0 pages
-recycle from the pool so every level has at least 1 page.
+    Level 1-2:  1 page each
+    Level 3-4:  2 pages each
+    Level 5-6:  3 pages each
+    Level 7-8:  4 pages each
+    Level 9-10: 5 pages each
+
+Formula: ``capacity(d) = (d + 1) // 2``  →  total for 10 levels = 30.
+
+The number of levels is controlled by the ``--levels`` CLI flag.
 """
 
 from __future__ import annotations
 
 import logging
 
-from dust_ingest.models import Level, MutationParams, PageSnapshot
+from dust_ingest.models import Level, MutationParams, PageSnapshot, UrlEntry
 
 logger = logging.getLogger(__name__)
 
@@ -20,36 +26,20 @@ NUM_LEVELS = 10
 
 
 # ---------------------------------------------------------------------------
-# Complexity scoring
+# Helpers
 # ---------------------------------------------------------------------------
 
-def _complexity_score(page: PageSnapshot) -> float:
-    """Heuristic complexity score for a single page snapshot.
+def _level_capacity(difficulty: int) -> int:
+    """Number of pages for a given difficulty level.
 
-    Higher = more complex → harder level.
+    1→1, 2→1, 3→2, 4→2, 5→3, 6→3, 7→4, 8→4, 9→5, 10→5
     """
-    text_len = len(page.html)
-    n_elements = len(page.elements)
-    n_images = len(page.assets)
-    n_headings = sum(
-        1 for e in page.elements if e.tag in {"h1", "h2", "h3", "h4", "h5", "h6"}
-    )
-    # Simple weighted sum
-    return (
-        text_len * 0.001
-        + n_elements * 1.0
-        + n_images * 2.0
-        + n_headings * 1.5
-    )
+    return (difficulty + 1) // 2
 
 
-# ---------------------------------------------------------------------------
-# Mutation parameters per difficulty
-# ---------------------------------------------------------------------------
-
-def _mutation_params(difficulty: int) -> MutationParams:
-    """Return mutation parameters scaled to *difficulty* (1–10)."""
-    t = (difficulty - 1) / 9.0  # 0.0 → 1.0
+def _mutation_params(difficulty: int, num_levels: int) -> MutationParams:
+    """Return mutation parameters scaled to *difficulty* (1–num_levels)."""
+    t = (difficulty - 1) / max(num_levels - 1, 1)  # 0.0 → 1.0
     return MutationParams(
         fakeRate=round(0.05 + t * 0.45, 3),       # 0.05 → 0.50
         subtlety=round(0.1 + t * 0.85, 3),        # 0.10 → 0.95
@@ -63,76 +53,64 @@ def _mutation_params(difficulty: int) -> MutationParams:
 
 def build_levels(
     pages: list[PageSnapshot],
+    url_entries: list[UrlEntry],
     *,
     project_id: str,
     num_levels: int = NUM_LEVELS,
 ) -> list[Level]:
-    """Create *num_levels* :class:`Level` objects from *pages*.
+    """Create levels by distributing URL entries with scaling capacity.
 
-    Pages are sorted by complexity and distributed across levels
-    respecting a per-level cap: level *d* can hold at most *d* pages.
-    Surplus pages are allocated to harder (later) levels first.
+    URLs are consumed in order from *url_entries*.  Level 1 gets the
+    first ``_level_capacity(1)`` URLs, level 2 gets the next batch, etc.
 
-    If ``len(pages) < num_levels``, levels that receive no pages are
-    back-filled by recycling from the pool.
+    Parameters
+    ----------
+    pages:
+        All scraped page snapshots.
+    url_entries:
+        The resolved URL entries from the input file, **in order**.
+    project_id:
+        Project identifier used in level IDs.
+    num_levels:
+        How many levels to create (from ``--levels`` CLI flag).
     """
     if not pages:
         logger.warning("No pages to build levels from")
         return []
 
-    # Sort ascending complexity
-    scored = sorted(pages, key=_complexity_score)
-    page_ids = [p.pageId for p in scored]
-    n = len(page_ids)
+    # Map URL → pageId for fast lookup
+    url_to_page_id: dict[str, str] = {p.url: p.pageId for p in pages}
 
-    # Level d can hold at most d pages  →  caps = [1, 2, 3, ..., num_levels]
-    caps = list(range(1, num_levels + 1))
-    total_cap = sum(caps)  # 55 for 10 levels
+    total_capacity = sum(_level_capacity(d) for d in range(1, num_levels + 1))
+    logger.info(
+        "Level capacities: %s (total %d pages for %d levels)",
+        [_level_capacity(d) for d in range(1, num_levels + 1)],
+        total_capacity,
+        num_levels,
+    )
 
-    # --- allocate page counts per level ---
-    allocation = [0] * num_levels
-
-    if n <= total_cap:
-        remaining = n
-
-        # Pass 1: give each level at least 1 page (if enough pages)
-        for i in range(num_levels):
-            if remaining <= 0:
-                break
-            allocation[i] = 1
-            remaining -= 1
-
-        # Pass 2: distribute surplus to harder levels first, respecting caps
-        for i in range(num_levels - 1, -1, -1):
-            if remaining <= 0:
-                break
-            space = caps[i] - allocation[i]
-            give = min(space, remaining)
-            allocation[i] += give
-            remaining -= give
-    else:
-        # More pages than capacity — fill every level to its cap
-        allocation = caps[:]
-        logger.warning(
-            "Have %d pages but total level capacity is %d — "
-            "%d pages will be unused",
-            n,
-            total_cap,
-            n - total_cap,
-        )
-
-    # --- build Level objects ---
     levels: list[Level] = []
-    idx = 0
-    for i in range(num_levels):
-        difficulty = i + 1
-        count = allocation[i]
-        bucket_ids = page_ids[idx : idx + count]
-        idx += count
+    idx = 0  # cursor into url_entries
+    for difficulty in range(1, num_levels + 1):
+        cap = _level_capacity(difficulty)
+        page_ids: list[str] = []
 
-        # If this level got 0 pages (N < num_levels), recycle from pool
-        if not bucket_ids:
-            bucket_ids = [page_ids[i % n]]
+        for _ in range(cap):
+            if idx >= len(url_entries):
+                break
+            entry = url_entries[idx]
+            idx += 1
+            page_id = url_to_page_id.get(entry.url)
+            if not page_id:
+                logger.warning(
+                    "URL %s was not scraped — skipping", entry.url,
+                )
+                continue
+            page_ids.append(page_id)
+
+        if not page_ids:
+            logger.warning("Level %d has no pages — skipping", difficulty)
+            continue
 
         level_id = f"{project_id}_level_{difficulty:02d}"
         levels.append(
@@ -140,17 +118,16 @@ def build_levels(
                 levelId=level_id,
                 projectId=project_id,
                 difficulty=difficulty,
-                pageIds=bucket_ids,
-                mutationParams=_mutation_params(difficulty),
+                pageIds=page_ids,
+                mutationParams=_mutation_params(difficulty, num_levels),
             )
         )
 
+    leveled_count = sum(len(lv.pageIds) for lv in levels)
+    extra_count = len(url_entries) - idx
     logger.info(
-        "Built %d levels from %d pages (project=%s, allocation=%s)",
-        len(levels),
-        n,
-        project_id,
-        allocation,
+        "Built %d levels with %d pages, %d extra URLs remain (project=%s)",
+        len(levels), leveled_count, extra_count, project_id,
     )
     return levels
 

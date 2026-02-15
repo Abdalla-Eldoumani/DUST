@@ -1,41 +1,77 @@
-import { GAME_CONSTANTS } from "@/lib/constants";
+import { GAME_CONSTANTS, DIFFICULTY_CONFIG, type DecayCurve } from "@/lib/constants";
 
 export interface DifficultyConfig {
   decayDuration: number;
+  decayStartDelay: number;
+  decayCurve: DecayCurve;
   misinfoCount: number;
   energyBudget: number;
+  toolCharges: number;
   label: string;
 }
 
 /**
- * Maps level number to game difficulty parameters.
+ * Maps level number to game difficulty parameters using the 4-tier config.
  */
 export function getDifficulty(level: number): DifficultyConfig {
   const clampedLevel = Math.min(level, GAME_CONSTANTS.MAX_LEVEL);
 
+  // Find matching tier
+  const tier = clampedLevel <= 3
+    ? DIFFICULTY_CONFIG.easy
+    : clampedLevel <= 6
+      ? DIFFICULTY_CONFIG.medium
+      : clampedLevel <= 9
+        ? DIFFICULTY_CONFIG.hard
+        : DIFFICULTY_CONFIG.expert;
+
+  // Fine-tune duration within tier based on exact level
+  const tierBase = tier.levels[0]!;
+  const withinTierOffset = clampedLevel - tierBase;
   const decayDuration = Math.max(
-    GAME_CONSTANTS.BASE_DECAY_DURATION -
-      (clampedLevel - 1) * GAME_CONSTANTS.DECAY_REDUCTION_PER_LEVEL,
+    tier.decayDuration - withinTierOffset * 3,
     GAME_CONSTANTS.MIN_DECAY_DURATION
   );
 
   let misinfoCount: number;
-  let label: string;
-
   if (clampedLevel <= 3) {
     misinfoCount = GAME_CONSTANTS.MISINFO_SECTIONS_EASY;
-    label = "Easy";
   } else if (clampedLevel <= 6) {
     misinfoCount = GAME_CONSTANTS.MISINFO_SECTIONS_MEDIUM;
-    label = "Medium";
   } else {
     misinfoCount = GAME_CONSTANTS.MISINFO_SECTIONS_HARD;
-    label = "Hard";
   }
 
-  const energyBudget =
-    GAME_CONSTANTS.BASE_ARCHIVE_ENERGY +
-    Math.floor(clampedLevel / 2) * GAME_CONSTANTS.ENERGY_REGEN_PER_LEVEL;
+  return {
+    decayDuration,
+    decayStartDelay: tier.decayStartDelay,
+    decayCurve: tier.decayCurve,
+    misinfoCount,
+    energyBudget: tier.archiveEnergy,
+    toolCharges: tier.toolCharges,
+    label: tier.label,
+  };
+}
 
-  return { decayDuration, misinfoCount, energyBudget, label };
+/**
+ * Applies a decay curve to raw linear progress (0-1).
+ * Returns curved progress value (0-1).
+ */
+export function applyDecayCurve(rawProgress: number, curve: DecayCurve): number {
+  const p = Math.max(0, Math.min(1, rawProgress));
+  switch (curve) {
+    case "linear":
+      return p;
+    case "ease-in":
+      // Quadratic-ish ease-in: slow start, accelerating decay
+      return p * p * (3 - 2 * p); // smoothstep for gentle ease
+    case "ease-in-quad":
+      // Quadratic: decay accelerates
+      return p * p;
+    case "ease-in-cubic":
+      // Cubic: even more dramatic acceleration
+      return p * p * p;
+    default:
+      return p;
+  }
 }

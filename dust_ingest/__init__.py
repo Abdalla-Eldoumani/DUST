@@ -1,6 +1,6 @@
 """DUST Ingestion + Level Builder Pipeline.
 
-Apify-based web scraping, OpenAI alteration, and level generation
+Apify-based web scraping, LLM-powered alteration, and level generation
 for the DUST digital archaeology game.  All output is cached locally.
 """
 

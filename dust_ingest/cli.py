@@ -61,8 +61,9 @@ def _load_config() -> PipelineConfig:
         apify_actor_id=_require_env("APIFY_ACTOR_ID", "apify/website-content-crawler"),
         apify_fallback_actor_id=os.environ.get("APIFY_FALLBACK_ACTOR_ID"),
         apify_timeout_secs=int(_require_env("APIFY_TIMEOUT_SECS", "120")),
-        openai_api_key=_require_env("OPENAI_API_KEY"),
-        openai_model=_require_env("OPENAI_MODEL", "gpt-4o"),
+        llm_api_key=_require_env("LLM_API_KEY"),
+        llm_base_url=_require_env("LLM_BASE_URL", "https://api.deepinfra.com/v1/openai"),
+        llm_model=_require_env("LLM_MODEL", "moonshotai/Kimi-K2.5"),
         convex_url=_require_env("CONVEX_URL"),
         concurrency=int(_require_env("CONCURRENCY", "3")),
         retries=int(_require_env("RETRIES", "2")),
@@ -102,11 +103,11 @@ def _cmd_build(args: argparse.Namespace) -> None:
     from dust_ingest.apify_scrape import scrape_urls
     from dust_ingest.convex_upload import upload_levels, upload_pages, upload_variants
     from dust_ingest.leveling import build_levels
-    from dust_ingest.openai_alter import generate_variants
+    from dust_ingest.llm_alter import generate_variants
 
     # 1. Load config
     config = _load_config()
-    logger.info("Pipeline config loaded (model=%s)", config.openai_model)
+    logger.info("Pipeline config loaded (model=%s)", config.llm_model)
 
     # 2. Read + validate input
     input_path = Path(args.input)
@@ -133,18 +134,18 @@ def _cmd_build(args: argparse.Namespace) -> None:
         _save_page_cache(p)
     logger.info("Cached %d page snapshots to %s", len(pages), CACHE_DIR / "pages")
 
-    # 5. Build levels
+    # 5. Build levels (explicit 1-page-per-level assignments)
     logger.info("=== Phase 2: Building levels ===")
     num_levels = args.levels
-    levels = build_levels(pages, project_id=project_id, num_levels=num_levels)
+    levels = build_levels(pages, urls, project_id=project_id, num_levels=num_levels)
     for lv in levels:
         _save_level_cache(lv)
     logger.info("Built and cached %d levels", len(levels))
 
-    # 6. Generate variants via OpenAI
-    logger.info("=== Phase 3: Generating altered variants (OpenAI) ===")
+    # 6. Generate variants via LLM (up to 200 concurrent requests)
+    logger.info("=== Phase 3: Generating altered variants (LLM) ===")
     variants = generate_variants(pages, levels, config)
-    logger.info("Generated %d variants", len(variants))
+    logger.info("Generated %d variants for %d pages", len(variants), len(pages))
 
     # 7. Cache variants locally
     variants_dir = CACHE_DIR / "variants"

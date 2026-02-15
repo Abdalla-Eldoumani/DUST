@@ -23,6 +23,8 @@ export const CACHED_PAGES: PageContent[] = [
         category: "headline",
         decayOrder: 5,
         archiveCost: 1,
+        crossRefIssue: "UN reports consistently show water scarcity is worsening, not improving.",
+        sourceIssue: "Claim contradicts all major UNEP publications on water resources.",
       },
       {
         id: "s2",
@@ -31,6 +33,7 @@ export const CACHED_PAGES: PageContent[] = [
         category: "body",
         decayOrder: 3,
         archiveCost: 1,
+        crossRefIssue: "No satellite studies corroborate a 12% freshwater increase.",
       },
       {
         id: "s3",
@@ -39,6 +42,7 @@ export const CACHED_PAGES: PageContent[] = [
         category: "quote",
         decayOrder: 3,
         archiveCost: 1,
+        sourceIssue: "No credible record of 'Dr. James Okafor' in hydrology research.",
       },
       {
         id: "s4",
@@ -94,6 +98,8 @@ export const CACHED_PAGES: PageContent[] = [
         category: "body",
         decayOrder: 3,
         archiveCost: 1,
+        crossRefIssue: "The 'goldfish attention span' claim is a widely debunked myth with no Harvard source.",
+        sourceIssue: "No Harvard Medical School study makes this claim.",
       },
       {
         id: "s3",
@@ -166,6 +172,8 @@ export const CACHED_PAGES: PageContent[] = [
         category: "body",
         decayOrder: 3,
         archiveCost: 1,
+        sourceIssue: "No Goldman Sachs report contains this 92% claim.",
+        emotionalLanguage: "Uses fear-inducing framing ('locking out') to amplify unverified statistic.",
       },
       {
         id: "s4",
@@ -190,6 +198,8 @@ export const CACHED_PAGES: PageContent[] = [
         category: "statistic",
         decayOrder: 2,
         archiveCost: 1,
+        crossRefIssue: "MIT retraining ROI figure ($4.70) cannot be verified in any published study.",
+        emotionalLanguage: "Appeals to 'political will' to disguise unverified statistic as settled fact.",
       },
     ],
     factCheckData: {
@@ -671,6 +681,8 @@ export const CACHED_PAGES: PageContent[] = [
         category: "body",
         decayOrder: 3,
         archiveCost: 1,
+        crossRefIssue: "Coffee origin is Ethiopia, not Brazil — the legend involves an Ethiopian goat herder named Kaldi.",
+        dateIssue: "Coffee was not discovered in Brazil; Brazil didn't cultivate coffee until the 18th century.",
       },
       {
         id: "s4",

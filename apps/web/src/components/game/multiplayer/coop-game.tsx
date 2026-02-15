@@ -52,6 +52,11 @@ export function CoopGame({
 
   const { partnerPings, addPartnerPing } = useMultiplayerStore();
 
+  const coopSelections = useQuery(api.multiplayer.getCoopSelections, {
+    roomId,
+    round: currentRound,
+  });
+
   const content = useMemo(
     () => getContentById(contentId) ?? getRandomCachedPage([], 3),
     [contentId]
@@ -63,6 +68,8 @@ export function CoopGame({
   const [hasArchived, setHasArchived] = useState(false);
   const [roundScore, setRoundScore] = useState(0);
   const roundEndedRef = useRef(false);
+  const hasTimedOutRef = useRef(false);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const decayEngine = useDecayEngine({
     duration: content.decayDuration,
@@ -102,6 +109,27 @@ export function CoopGame({
     );
   }, [roundActions, user]);
 
+  // Handle decay timeout — auto-submit when time runs out
+  useEffect(() => {
+    if (!decayEngine.isComplete || hasTimedOutRef.current) return;
+    hasTimedOutRef.current = true;
+
+    if (hasArchived) return;
+
+    if (selectedSections.length > 0) {
+      handleArchive();
+    } else {
+      setHasArchived(true);
+      decayEngine.pause();
+      setRoundScore(0);
+      submitAction({
+        roomId,
+        action: "archive",
+        data: "0",
+      }).catch(() => {});
+    }
+  }, [decayEngine.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-end round when both have archived
   useEffect(() => {
     if (!hasArchived || !partnerArchived || roundEndedRef.current) return;
@@ -123,6 +151,32 @@ export function CoopGame({
     });
   }, [hasArchived, partnerArchived]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety net: if we archived but partner hasn't after 10s, host force-advances
+  useEffect(() => {
+    if (!hasArchived || partnerArchived || !isHost) return;
+    safetyTimerRef.current = setTimeout(() => {
+      if (roundEndedRef.current) return;
+      roundEndedRef.current = true;
+      endRound({
+        roomId,
+        hostScoreAdd: 0,
+        guestScoreAdd: 0,
+        sharedScoreAdd: roundScore,
+      });
+    }, 10000);
+    return () => {
+      if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    };
+  }, [hasArchived, partnerArchived, isHost]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derive partner selections from synced data
+  const partnerSelections = useMemo(() => {
+    if (!coopSelections || !user) return [] as string[];
+    return coopSelections
+      .filter((s: { sectionId: string; playerId: string }) => s.playerId !== user.id)
+      .map((s: { sectionId: string; playerId: string }) => s.sectionId);
+  }, [coopSelections, user]);
+
   const handleSelect = useCallback(
     (sectionId: string) => {
       if (hasArchived) return;
@@ -141,8 +195,15 @@ export function CoopGame({
         setLocalEnergy(newEnergy);
         updateEnergy({ roomId, energy: newEnergy });
       }
+
+      // Sync selection to Convex for partner visibility
+      submitAction({
+        roomId,
+        action: "select",
+        data: JSON.stringify({ sectionId, playerId: user?.id }),
+      }).catch(() => {});
     },
-    [hasArchived, content.sections, selectedSections, localEnergy, roomId, updateEnergy]
+    [hasArchived, content.sections, selectedSections, localEnergy, roomId, updateEnergy, submitAction, user]
   );
 
   const handleArchive = useCallback(async () => {
@@ -205,6 +266,7 @@ export function CoopGame({
             content={content}
             decayProgress={decayProgress}
             selectedSections={selectedSections}
+            partnerSelections={partnerSelections}
             onSelectSection={handleSelect}
           />
         </div>

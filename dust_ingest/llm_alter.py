@@ -1,8 +1,8 @@
-"""OpenAI-powered page alteration.
+"""LLM-powered page alteration.
 
-Calls the OpenAI Responses API to inject misinformation into scraped pages,
-scaled by level difficulty.  All injected spans are explicitly marked with
-``<FAKE: ...>`` or ``<MISLEADING: ...>`` tags.
+Calls an LLM API (OpenAI-compatible) to inject misinformation into scraped
+pages, scaled by level difficulty.  All injected spans are explicitly marked
+with ``<FAKE: ...>`` or ``<MISLEADING: ...>`` tags.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def _truncate_to_sentence_boundary(text: str, max_chars: int) -> str:
 
 
 def _compact_elements(page: PageSnapshot) -> list[dict]:
-    """Build a compact element list for the OpenAI prompt."""
+    """Build a compact element list for the LLM prompt."""
     out: list[dict] = []
     for el in page.elements:
         d: dict = {"elementId": el.elementId, "type": el.tag}
@@ -169,7 +169,7 @@ def _elements_to_html(elements: list[dict]) -> str:
 
 
 def _parse_response(raw: str) -> AlteredPage:
-    """Parse the OpenAI response into an AlteredPage, stripping markdown fences."""
+    """Parse the LLM response into an AlteredPage, stripping markdown fences."""
     text = raw.strip()
     # Strip markdown code fences if present
     if text.startswith("```"):
@@ -248,30 +248,42 @@ def alter_page(
     params: MutationParams,
     difficulty: int,
     config: PipelineConfig,
+    *,
+    client: OpenAI | None = None,
 ) -> AlteredPage:
-    """Call OpenAI to produce an altered variant of *page*.
+    """Call the LLM to produce an altered variant of *page*.
 
     Retries up to ``config.retries`` times on JSON parse failures.
+
+    Parameters
+    ----------
+    client:
+        A shared :class:`OpenAI` client instance.  If *None* a throwaway
+        client is created (kept for backwards-compat, but slower).
     """
-    client = OpenAI(api_key=config.openai_api_key)
+    if client is None:
+        client = OpenAI(api_key=config.llm_api_key, base_url=config.llm_base_url)
     system = _build_system_prompt(params, difficulty)
-    user = _build_user_prompt(page)
+    user_prompt = _build_user_prompt(page)
 
     last_err: Exception | None = None
     no_fake_candidate: AlteredPage | None = None
     for attempt in range(1, config.retries + 2):
         try:
-            response = client.responses.create(
-                model=config.openai_model,
-                instructions=system,
-                input=user if attempt == 1 else (
-                    user + "\n\nIMPORTANT: Return valid JSON only. "
-                    "No markdown fences. No text outside the JSON object. "
-                    "You MUST include at least one fakeMarks entry and at "
-                    "least one corresponding <FAKE: ...> or <MISLEADING: ...> span."
-                ),
+            user_content = user_prompt if attempt == 1 else (
+                user_prompt + "\n\nIMPORTANT: Return valid JSON only. "
+                "No markdown fences. No text outside the JSON object. "
+                "You MUST include at least one fakeMarks entry and at "
+                "least one corresponding <FAKE: ...> or <MISLEADING: ...> span."
             )
-            text = response.output_text
+            response = client.chat.completions.create(
+                model=config.llm_model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_content},
+                ],
+            )
+            text = response.choices[0].message.content
             parsed = _parse_response(text)
             if parsed.fakeMarks:
                 return parsed
@@ -279,21 +291,21 @@ def alter_page(
             no_fake_candidate = parsed
             last_err = ValueError("Model returned no fakeMarks")
             logger.warning(
-                "OpenAI response had no fake marks (attempt %d/%d)",
+                "LLM response had no fake marks (attempt %d/%d)",
                 attempt,
                 config.retries + 1,
             )
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
             last_err = exc
             logger.warning(
-                "OpenAI JSON parse failed (attempt %d/%d): %s",
+                "LLM JSON parse failed (attempt %d/%d): %s",
                 attempt,
                 config.retries + 1,
                 exc,
             )
         except Exception as exc:
             last_err = exc
-            logger.exception("OpenAI API error (attempt %d)", attempt)
+            logger.exception("LLM API error (attempt %d)", attempt)
 
     if no_fake_candidate is not None:
         ensured = _ensure_minimum_fake(no_fake_candidate)
@@ -304,48 +316,121 @@ def alter_page(
             )
             return ensured
 
-    logger.error("All OpenAI attempts failed for page %s: %s", page.pageId, last_err)
+    logger.error("All LLM attempts failed for page %s: %s", page.pageId, last_err)
     # Return empty alteration rather than crashing
     return AlteredPage(alteredContent="", fakeMarks=[])
+
+
+_DEFAULT_WORKERS = 200
+_EXTRA_DIFFICULTY = 5  # default difficulty for pages not in any level
+
+
+def _generate_one_variant(
+    page: PageSnapshot,
+    params: MutationParams,
+    difficulty: int,
+    level_id: str,
+    project_id: str,
+    config: PipelineConfig,
+    client: OpenAI,
+) -> PageVariant | None:
+    """Generate a single variant (called from thread pool)."""
+    try:
+        altered = alter_page(page, params, difficulty, config, client=client)
+        return PageVariant(
+            variantId=uuid.uuid4().hex[:16],
+            pageId=page.pageId,
+            levelId=level_id,
+            difficulty=difficulty,
+            alteredContent=altered.alteredContent,
+            fakeMarks=altered.fakeMarks,
+            projectId=project_id,
+        )
+    except Exception:
+        logger.exception("Failed to generate variant for page %s difficulty %d",
+                         page.pageId, difficulty)
+        return None
 
 
 def generate_variants(
     pages: list[PageSnapshot],
     levels: list[Level],
     config: PipelineConfig,
+    *,
+    max_workers: int = _DEFAULT_WORKERS,
+    extra_difficulty: int = _EXTRA_DIFFICULTY,
 ) -> list[PageVariant]:
-    """Generate altered variants for every page in every level.
+    """Generate altered variants for **every** page.
 
+    Leveled pages use their level's difficulty and mutation params.
+    Pages not in any level use *extra_difficulty* with corresponding
+    default mutation params.
+
+    Runs up to *max_workers* LLM calls in parallel using threads.
     Returns a flat list of :class:`PageVariant` objects.
     """
-    page_map = {p.pageId: p for p in pages}
-    variants: list[PageVariant] = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    page_map = {p.pageId: p for p in pages}
+
+    # Build work items: (page, params, difficulty, levelId, projectId)
+    Work = tuple[PageSnapshot, MutationParams, int, str, str]
+    work: list[Work] = []
+
+    # 1. Leveled pages
+    leveled_page_ids: set[str] = set()
     for level in levels:
-        logger.info(
-            "Generating variants for level %d (%d pages)",
-            level.difficulty,
-            len(level.pageIds),
-        )
         for pid in level.pageIds:
             page = page_map.get(pid)
             if not page:
                 logger.warning("Page %s not found — skipping variant", pid)
                 continue
+            work.append((page, level.mutationParams, level.difficulty,
+                         level.levelId, level.projectId))
+            leveled_page_ids.add(pid)
 
-            altered = alter_page(
-                page, level.mutationParams, level.difficulty, config
-            )
-            variant = PageVariant(
-                variantId=uuid.uuid4().hex[:16],
-                pageId=pid,
-                levelId=level.levelId,
-                difficulty=level.difficulty,
-                alteredContent=altered.alteredContent,
-                fakeMarks=altered.fakeMarks,
-                projectId=level.projectId,
-            )
-            variants.append(variant)
+    # 2. Extra (non-leveled) pages — use default difficulty
+    num_levels = max((lv.difficulty for lv in levels), default=10)
+    extra_params = MutationParams(
+        fakeRate=round(0.05 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 0.45, 3),
+        subtlety=round(0.1 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 0.85, 3),
+        maxFakeSpans=max(1, int(1 + ((extra_difficulty - 1) / max(num_levels - 1, 1)) * 7)),
+    )
+    project_id = levels[0].projectId if levels else "default"
+    for page in pages:
+        if page.pageId not in leveled_page_ids:
+            work.append((page, extra_params, extra_difficulty,
+                         "extra", project_id))
 
+    logger.info(
+        "Generating %d variants (%d leveled + %d extra) with %d threads",
+        len(work), len(leveled_page_ids),
+        len(work) - len(leveled_page_ids), max_workers,
+    )
+
+    # Single shared client — enables httpx connection pooling across all workers
+    client = OpenAI(api_key=config.llm_api_key, base_url=config.llm_base_url)
+
+    variants: list[PageVariant] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(
+                _generate_one_variant,
+                page, params, diff, lid, proj, config, client,
+            ): (page.pageId, diff)
+            for page, params, diff, lid, proj in work
+        }
+        for future in as_completed(futures):
+            pid, diff = futures[future]
+            variant = future.result()
+            if variant is not None:
+                variants.append(variant)
+                logger.info(
+                    "Variant done: page=%s difficulty=%d (%d/%d)",
+                    pid, diff, len(variants), len(work),
+                )
+
+    # Sort by difficulty for consistent ordering
+    variants.sort(key=lambda v: (v.difficulty, v.pageId))
     logger.info("Generated %d total variants", len(variants))
     return variants
