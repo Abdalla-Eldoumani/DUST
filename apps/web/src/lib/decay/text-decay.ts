@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 // Block characters that look intentional and artistic, not broken
-const DECAY_CHARS = "░▒▓█╳╱╲◻◼▪▫◇◆●○◌▢⌧⍜⎔".split("");
+export const DECAY_CHARS = "░▒▓█╳╱╲◻◼▪▫◇◆●○◌▢⌧⍜⎔".split("");
 
 // Deterministic pseudo-random based on char index + seed
 function seededRandom(seed: number): number {
